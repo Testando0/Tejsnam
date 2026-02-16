@@ -25,10 +25,8 @@ if (!fs.existsSync(USERS_FILE)) fs.writeFileSync(USERS_FILE, '[]');
 const getUsers = () => {
     try {
         const data = fs.readFileSync(USERS_FILE, 'utf8');
-        const parsed = JSON.parse(data || '[]');
-        return Array.isArray(parsed) ? parsed : [];
+        return JSON.parse(data || '[]');
     } catch (error) {
-        console.error("Erro ao ler users.json:", error);
         return [];
     }
 };
@@ -41,22 +39,16 @@ const saveAvatarImage = (username, base64Data) => {
         const matches = base64Data.match(/^data:image\/([A-Za-z-+\/]+);base64,(.+)$/);
         if (!matches || matches.length !== 3) return '';
         const ext = matches[1] === 'jpeg' ? 'jpg' : matches[1];
-        const buffer = Buffer.from(matches[2], 'base64');
         const filename = `${username}_${Date.now()}.${ext}`;
         const filepath = path.join(AVATAR_DIR, filename);
-        fs.writeFileSync(filepath, buffer);
+        fs.writeFileSync(filepath, Buffer.from(matches[2], 'base64'));
         return `/avatars/${filename}`;
     } catch (e) {
-        console.error("Erro ao salvar imagem:", e);
         return '';
     }
 };
 
-// --- CONFIGURAÇÃO DO SERVIDOR ---
-const io = new Server(server, { 
-    cors: { origin: "*" }, 
-    maxHttpBufferSize: 1e8 
-}); 
+const io = new Server(server, { cors: { origin: "*" }, maxHttpBufferSize: 1e8 }); 
 
 app.use(cors());
 app.use(express.json({ limit: '50mb' }));
@@ -64,24 +56,17 @@ app.use(express.urlencoded({ limit: '50mb', extended: true }));
 app.use(express.static('public'));
 
 const db = new sqlite3.Database('./chat_database.db');
-
 db.serialize(() => {
-    db.run("CREATE TABLE IF NOT EXISTS messages (id INTEGER PRIMARY KEY AUTOINCREMENT, s TEXT, r TEXT, c TEXT, type TEXT, status INTEGER DEFAULT 0, time DATETIME DEFAULT (datetime('now')))");
-    db.run("CREATE TABLE IF NOT EXISTS stories (id INTEGER PRIMARY KEY AUTOINCREMENT, username TEXT, content TEXT, type TEXT DEFAULT 'image', caption TEXT, bg_color TEXT, viewers TEXT DEFAULT '[]', time DATETIME DEFAULT (datetime('now')))");
+    db.run("CREATE TABLE IF NOT EXISTS messages (id INTEGER PRIMARY KEY AUTOINCREMENT, s TEXT, r TEXT, c TEXT, type TEXT, status INTEGER DEFAULT 0, time TEXT)");
+    db.run("CREATE TABLE IF NOT EXISTS stories (id INTEGER PRIMARY KEY AUTOINCREMENT, username TEXT, content TEXT, type TEXT DEFAULT 'image', caption TEXT, bg_color TEXT, viewers TEXT DEFAULT '[]', time TEXT)");
 });
 
 const onlineUsers = {}; 
 
-app.get('/', (req, res) => {
-    res.sendFile(path.join(__dirname, 'public', 'index.html'));
-});
-
-// --- SOCKET.IO ---
 io.on('connection', (socket) => {
     socket.on('join', (username) => { 
         socket.username = username; 
         onlineUsers[username] = socket.id;
-        
         let users = getUsers();
         let user = users.find(u => u.username === username);
         if (user) {
@@ -94,9 +79,10 @@ io.on('connection', (socket) => {
     socket.on('send_msg', (data) => {
         const recipientSocketId = onlineUsers[data.r];
         const status = recipientSocketId ? 1 : 0; 
+        const timestamp = new Date().toISOString();
         
-        db.run("INSERT INTO messages (s, r, c, type, status, time) VALUES (?, ?, ?, ?, ?, datetime('now'))", 
-            [data.s, data.r, data.c, data.type, status], 
+        db.run("INSERT INTO messages (s, r, c, type, status, time) VALUES (?, ?, ?, ?, ?, ?)", 
+            [data.s, data.r, data.c, data.type, status, timestamp], 
             function(err) {
                 if(!err) {
                     const msgId = this.lastID;
@@ -117,43 +103,17 @@ io.on('connection', (socket) => {
         });
     });
 
-    // WebRTC Signaling
     socket.on('call_user', (data) => {
-        const recipientSocketId = onlineUsers[data.to];
-        if (recipientSocketId) {
-            io.to(recipientSocketId).emit('call_incoming', {
-                from: data.from,
-                offer: data.offer,
-                type: data.type
-            });
-        }
+        if (onlineUsers[data.to]) io.to(onlineUsers[data.to]).emit('call_incoming', data);
     });
-
     socket.on('answer_call', (data) => {
-        const recipientSocketId = onlineUsers[data.to];
-        if (recipientSocketId) {
-            io.to(recipientSocketId).emit('call_answered', {
-                from: data.from,
-                answer: data.answer
-            });
-        }
+        if (onlineUsers[data.to]) io.to(onlineUsers[data.to]).emit('call_answered', data);
     });
-
     socket.on('ice_candidate', (data) => {
-        const recipientSocketId = onlineUsers[data.to];
-        if (recipientSocketId) {
-            io.to(recipientSocketId).emit('ice_candidate', {
-                from: data.from,
-                candidate: data.candidate
-            });
-        }
+        if (onlineUsers[data.to]) io.to(onlineUsers[data.to]).emit('ice_candidate', data);
     });
-
     socket.on('end_call', (data) => {
-        const recipientSocketId = onlineUsers[data.to];
-        if (recipientSocketId) {
-            io.to(recipientSocketId).emit('call_ended', { from: data.from });
-        }
+        if (onlineUsers[data.to]) io.to(onlineUsers[data.to]).emit('call_ended', data);
     });
 
     socket.on('disconnect', () => { 
@@ -171,21 +131,20 @@ io.on('connection', (socket) => {
     });
 });
 
-// --- API DE USUÁRIOS ---
 app.post('/register', async (req, res) => {
     try {
         const { username, password, display_name } = req.body;
         if(!username || !password) return res.status(400).json({error: "Dados inválidos"});
         let users = getUsers();
-        if(users.find(u => u.username === username)) return res.status(400).json({error: "Usuário já existe"});
+        const un = username.toLowerCase().trim();
+        if(users.find(u => u.username === un)) return res.status(400).json({error: "Usuário já existe"});
         const hash = await bcrypt.hash(password, 10);
         const newUser = {
-            username: username.toLowerCase(),
-            display_name: display_name || username,
+            username: un,
+            display_name: display_name || un,
             password: hash,
             bio: 'Olá! Estou usando o Telegram 2026.',
             avatar: '',
-            is_verified: false,
             is_online: false,
             last_seen: null,
             bg_image: ''
@@ -200,7 +159,7 @@ app.post('/login', async (req, res) => {
     try {
         const { username, password } = req.body;
         let users = getUsers();
-        const user = users.find(u => u.username === username.toLowerCase());
+        const user = users.find(u => u.username === username.toLowerCase().trim());
         if(user && await bcrypt.compare(password, user.password)) { 
             const { password, ...userSafe } = user;
             res.json(userSafe); 
@@ -216,9 +175,7 @@ app.get('/user/:u', (req, res) => {
     if(user) {
         const { password, ...userSafe } = user;
         res.json(userSafe);
-    } else {
-        res.json({ username: req.params.u, avatar: '', is_verified: false });
-    }
+    } else res.json({ username: req.params.u, avatar: '', display_name: req.params.u });
 });
 
 app.post('/update-profile', (req, res) => {
@@ -232,21 +189,17 @@ app.post('/update-profile', (req, res) => {
         if(avatar && avatar.startsWith('data:image')) {
             const savedPath = saveAvatarImage(username, avatar);
             if(savedPath) users[userIndex].avatar = savedPath;
-        } else if (avatar === "") {
-            users[userIndex].avatar = "";
         }
         saveUsers(users);
         res.json({ok: true, user: users[userIndex]});
-    } else {
-        res.status(404).json({error: "User not found"});
-    }
+    } else res.status(404).json({error: "User not found"});
 });
 
-// --- API STATUS ---
 app.post('/post-status', (req, res) => {
-    const { username, content, type, caption, bg_color } = req.body;
-    db.run("INSERT INTO stories (username, content, type, caption, bg_color, time) VALUES (?, ?, ?, ?, ?, datetime('now'))", 
-        [username, content, type || 'image', caption || '', bg_color || ''], 
+    const { username, content, type, caption } = req.body;
+    const timestamp = new Date().toISOString();
+    db.run("INSERT INTO stories (username, content, type, caption, time) VALUES (?, ?, ?, ?, ?)", 
+        [username, content, type || 'image', caption || '', timestamp], 
         function(err) {
             if(err) return res.status(500).json({error: err.message});
             res.json({ok: true});
@@ -255,28 +208,20 @@ app.post('/post-status', (req, res) => {
 });
 
 app.get('/get-status', (req, res) => {
-    db.all("SELECT * FROM stories WHERE time > datetime('now', '-24 hours') ORDER BY time ASC", (e, rows) => {
+    const twentyFourHoursAgo = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString();
+    db.all("SELECT * FROM stories WHERE time > ? ORDER BY time ASC", [twentyFourHoursAgo], (e, rows) => {
         if(e) return res.json([]);
         const users = getUsers();
         const result = rows.map(r => {
             const u = users.find(user => user.username === r.username);
-            return {
-                ...r,
-                viewers: JSON.parse(r.viewers || "[]"),
-                avatar: u ? u.avatar : '',
-                display_name: u ? u.display_name : r.username
-            };
+            return { ...r, avatar: u ? u.avatar : '', display_name: u ? u.display_name : r.username };
         });
         res.json(result);
     });
 });
 
 app.get('/chats/:me', (req, res) => {
-    const q = `
-        SELECT m.id, m.s, m.r, m.c, m.type, m.status, m.time 
-        FROM messages m 
-        WHERE (m.s = ? OR m.r = ?)
-        ORDER BY m.id DESC`;
+    const q = "SELECT * FROM messages WHERE (s = ? OR r = ?) ORDER BY time DESC";
     db.all(q, [req.params.me, req.params.me], (e, rows) => {
         if(e) return res.json([]);
         const chatsMap = {};
@@ -284,36 +229,23 @@ app.get('/chats/:me', (req, res) => {
             const contact = row.s === req.params.me ? row.r : row.s;
             if(!chatsMap[contact]) {
                 chatsMap[contact] = {
-                    contact: contact,
-                    last_msg: row.c,
-                    last_type: row.type,
-                    last_status: row.status,
-                    last_sender: row.s,
-                    last_time: row.time,
-                    unread: 0
+                    contact, last_msg: row.c, last_time: row.time, unread: 0,
+                    last_sender: row.s, last_status: row.status
                 };
             }
-            if(row.r === req.params.me && row.s === contact && row.status < 2) {
-                chatsMap[contact].unread++;
-            }
+            if(row.r === req.params.me && row.s === contact && row.status < 2) chatsMap[contact].unread++;
         });
         const users = getUsers();
         const result = Object.values(chatsMap).map(chat => {
-            const uData = users.find(u => u.username === chat.contact);
-            return {
-                ...chat,
-                display_name: uData ? uData.display_name : chat.contact,
-                avatar: uData ? uData.avatar : '',
-                is_online: uData ? uData.is_online : false,
-                is_verified: uData ? uData.is_verified : false
-            };
+            const u = users.find(u => u.username === chat.contact);
+            return { ...chat, display_name: u ? u.display_name : chat.contact, avatar: u ? u.avatar : '', is_online: u ? u.is_online : false };
         });
         res.json(result);
     });
 });
 
 app.get('/messages/:u1/:u2', (req, res) => {
-    db.all("SELECT * FROM messages WHERE (s=? AND r=?) OR (s=? AND r=?) ORDER BY id ASC", 
+    db.all("SELECT * FROM messages WHERE (s=? AND r=?) OR (s=? AND r=?) ORDER BY time ASC", 
         [req.params.u1, req.params.u2, req.params.u2, req.params.u1], 
         (e, r) => res.json(r || [])
     );
