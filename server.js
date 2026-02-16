@@ -121,7 +121,7 @@ io.on('connection', (socket) => {
         const status = isRecipientOnline ? 1 : 0; 
 
         let content = data.c;
-        if (data.type !== 'text' && content.startsWith('data:')) {
+        if (data.type !== 'text' && data.type !== 'call' && content.startsWith('data:')) {
             content = saveBase64File(content, 'uploads', sender);
         }
 
@@ -143,6 +143,43 @@ io.on('connection', (socket) => {
                 });
             }
         );
+    });
+
+    // --- CALL SYSTEM (SIGNALING) ---
+    socket.on('call_user', (data) => {
+        const { to, from, type, signal } = data;
+        if (onlineUsers.has(to.toLowerCase())) {
+            onlineUsers.get(to.toLowerCase()).forEach(sid => {
+                io.to(sid).emit('incoming_call', { from, type, signal });
+            });
+        }
+    });
+
+    socket.on('accept_call', (data) => {
+        const { to, signal } = data;
+        if (onlineUsers.has(to.toLowerCase())) {
+            onlineUsers.get(to.toLowerCase()).forEach(sid => {
+                io.to(sid).emit('call_accepted', { signal });
+            });
+        }
+    });
+
+    socket.on('reject_call', (data) => {
+        const { to } = data;
+        if (onlineUsers.has(to.toLowerCase())) {
+            onlineUsers.get(to.toLowerCase()).forEach(sid => {
+                io.to(sid).emit('call_rejected');
+            });
+        }
+    });
+
+    socket.on('end_call', (data) => {
+        const { to } = data;
+        if (onlineUsers.has(to.toLowerCase())) {
+            onlineUsers.get(to.toLowerCase()).forEach(sid => {
+                io.to(sid).emit('call_ended');
+            });
+        }
     });
 
     socket.on('delete_msg', (data) => {
@@ -314,6 +351,37 @@ app.post('/update-profile', (req, res) => {
         saveUsers(users);
         res.json({ok: true, user: users[idx]});
     } else res.status(404).send();
+});
+
+// --- STORIES ENDPOINTS ---
+app.get('/stories', (req, res) => {
+    const yesterday = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString();
+    db.all("SELECT * FROM stories WHERE time > ? ORDER BY time DESC", [yesterday], (err, rows) => {
+        if (err) return res.status(500).json([]);
+        const users = getUsers();
+        const stories = rows.map(s => {
+            const u = users.find(u => u.username === s.username);
+            return { ...s, display_name: u?.display_name || s.username, avatar: u?.avatar || '' };
+        });
+        res.json(stories);
+    });
+});
+
+app.post('/stories', (req, res) => {
+    const { username, content, type, caption, bg_color } = req.body;
+    let finalContent = content;
+    if (type !== 'text' && content.startsWith('data:')) {
+        finalContent = saveBase64File(content, 'uploads', 'story_' + username);
+    }
+    const time = new Date().toISOString();
+    db.run("INSERT INTO stories (username, content, type, caption, bg_color, time) VALUES (?, ?, ?, ?, ?, ?)",
+        [username, finalContent, type, caption || '', bg_color || '', time],
+        function(err) {
+            if (err) return res.status(500).json({ error: err.message });
+            io.emit('new_story', { id: this.lastID, username, content: finalContent, type, time });
+            res.json({ ok: true });
+        }
+    );
 });
 
 // --- HELPER: FILE SAVE ---
