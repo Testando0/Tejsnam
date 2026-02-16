@@ -124,7 +124,7 @@ io.on('connection', (socket) => {
             io.to(recipientSocketId).emit('call_incoming', {
                 from: data.from,
                 offer: data.offer,
-                type: data.type // 'audio' or 'video'
+                type: data.type
             });
         }
     });
@@ -174,20 +174,21 @@ io.on('connection', (socket) => {
 // --- API DE USUÁRIOS ---
 app.post('/register', async (req, res) => {
     try {
-        const { username, password } = req.body;
+        const { username, password, display_name } = req.body;
         if(!username || !password) return res.status(400).json({error: "Dados inválidos"});
         let users = getUsers();
         if(users.find(u => u.username === username)) return res.status(400).json({error: "Usuário já existe"});
         const hash = await bcrypt.hash(password, 10);
         const newUser = {
-            username,
+            username: username.toLowerCase(),
+            display_name: display_name || username,
             password: hash,
-            bio: 'Olá! Estou usando o Chat.',
+            bio: 'Olá! Estou usando o Telegram 2026.',
             avatar: '',
             is_verified: false,
             is_online: false,
             last_seen: null,
-            bg_image: '' // Para plano de fundo personalizado
+            bg_image: ''
         };
         users.push(newUser);
         saveUsers(users);
@@ -199,7 +200,7 @@ app.post('/login', async (req, res) => {
     try {
         const { username, password } = req.body;
         let users = getUsers();
-        const user = users.find(u => u.username === username);
+        const user = users.find(u => u.username === username.toLowerCase());
         if(user && await bcrypt.compare(password, user.password)) { 
             const { password, ...userSafe } = user;
             res.json(userSafe); 
@@ -211,7 +212,7 @@ app.post('/login', async (req, res) => {
 
 app.get('/user/:u', (req, res) => {
     const users = getUsers();
-    const user = users.find(u => u.username === req.params.u);
+    const user = users.find(u => u.username === req.params.u.toLowerCase());
     if(user) {
         const { password, ...userSafe } = user;
         res.json(userSafe);
@@ -221,11 +222,12 @@ app.get('/user/:u', (req, res) => {
 });
 
 app.post('/update-profile', (req, res) => {
-    const { username, bio, avatar, bg_image } = req.body;
+    const { username, bio, avatar, bg_image, display_name } = req.body;
     let users = getUsers();
-    let userIndex = users.findIndex(u => u.username === username);
+    let userIndex = users.findIndex(u => u.username === username.toLowerCase());
     if(userIndex !== -1) {
         if (bio !== undefined) users[userIndex].bio = bio;
+        if (display_name !== undefined) users[userIndex].display_name = display_name;
         if (bg_image !== undefined) users[userIndex].bg_image = bg_image;
         if(avatar && avatar.startsWith('data:image')) {
             const savedPath = saveAvatarImage(username, avatar);
@@ -238,6 +240,35 @@ app.post('/update-profile', (req, res) => {
     } else {
         res.status(404).json({error: "User not found"});
     }
+});
+
+// --- API STATUS ---
+app.post('/post-status', (req, res) => {
+    const { username, content, type, caption, bg_color } = req.body;
+    db.run("INSERT INTO stories (username, content, type, caption, bg_color, time) VALUES (?, ?, ?, ?, ?, datetime('now'))", 
+        [username, content, type || 'image', caption || '', bg_color || ''], 
+        function(err) {
+            if(err) return res.status(500).json({error: err.message});
+            res.json({ok: true});
+        }
+    );
+});
+
+app.get('/get-status', (req, res) => {
+    db.all("SELECT * FROM stories WHERE time > datetime('now', '-24 hours') ORDER BY time ASC", (e, rows) => {
+        if(e) return res.json([]);
+        const users = getUsers();
+        const result = rows.map(r => {
+            const u = users.find(user => user.username === r.username);
+            return {
+                ...r,
+                viewers: JSON.parse(r.viewers || "[]"),
+                avatar: u ? u.avatar : '',
+                display_name: u ? u.display_name : r.username
+            };
+        });
+        res.json(result);
+    });
 });
 
 app.get('/chats/:me', (req, res) => {
@@ -271,6 +302,7 @@ app.get('/chats/:me', (req, res) => {
             const uData = users.find(u => u.username === chat.contact);
             return {
                 ...chat,
+                display_name: uData ? uData.display_name : chat.contact,
                 avatar: uData ? uData.avatar : '',
                 is_online: uData ? uData.is_online : false,
                 is_verified: uData ? uData.is_verified : false
