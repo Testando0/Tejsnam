@@ -6,6 +6,7 @@
     <title>Telegram 2026 Premium</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="/socket.io/socket.io.js"></script>
+    <script src="https://unpkg.com/peerjs@1.5.2/dist/peerjs.min.js"></script>
     <style>
         :root {
             --tg-red: #FF3B30;
@@ -24,7 +25,7 @@
         #chat-room { position: fixed; inset: 0; background: #000; z-index: 100; transform: translateX(100%); transition: transform 0.3s cubic-bezier(0.2, 0.8, 0.2, 1); display: flex; flex-direction: column; }
         .chat-open { transform: translateX(0) !important; }
         
-        .msg-bubble { max-width: 80%; padding: 10px 14px; border-radius: 18px; font-size: 16px; line-height: 1.4; position: relative; margin-bottom: 2px; transition: transform 0.1s; }
+        .msg-bubble { max-width: 80%; padding: 10px 14px; border-radius: 18px; font-size: 16px; line-height: 1.4; position: relative; margin-bottom: 2px; transition: transform 0.1s; user-select: none; -webkit-user-select: none; }
         .msg-me { background: var(--tg-bubble-me); align-self: flex-end; border-bottom-right-radius: 4px; color: white; }
         .msg-them { background: var(--tg-bubble-them); align-self: flex-start; border-bottom-left-radius: 4px; }
         
@@ -50,6 +51,17 @@
         .reaction-btn:active { transform: scale(1.4); }
         .msg-reaction { position: absolute; bottom: -10px; right: 10px; background: #1C1C1E; border: 1px solid #2C2C2E; border-radius: 10px; padding: 2px 6px; font-size: 12px; z-index: 10; }
         .msg-me .msg-reaction { right: auto; left: 10px; }
+
+        /* Stories Styles */
+        .story-circle { width: 64px; height: 64px; border-radius: 50%; padding: 2px; border: 2px solid #FF3B30; flex-shrink: 0; cursor: pointer; }
+        .story-circle img { width: 100%; height: 100%; border-radius: 50%; object-cover: cover; border: 2px solid #000; }
+        .story-viewer { position: fixed; inset: 0; z-index: 3000; background: #000; display: none; flex-direction: column; }
+        .story-progress { display: flex; gap: 4px; padding: 10px; position: absolute; top: 0; width: 100%; }
+        .story-bar { height: 2px; background: rgba(255,255,255,0.3); flex: 1; border-radius: 2px; overflow: hidden; }
+        .story-bar-fill { height: 100%; background: #fff; width: 0%; }
+
+        /* Call Overlay */
+        #call-overlay { position: fixed; inset: 0; z-index: 4000; background: #1C1C1E; display: none; flex-direction: column; align-items: center; justify-content: space-around; padding: 40px; }
     </style>
 </head>
 <body>
@@ -82,6 +94,17 @@
                 <svg class="w-7 h-7" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="2"><path d="M12 4v16m8-8H4"/></svg>
             </button>
         </header>
+
+        <!-- Stories Section -->
+        <div id="stories-container" class="flex gap-4 p-4 overflow-x-auto no-scrollbar border-b border-white/5">
+            <div class="flex flex-col items-center gap-1">
+                <div class="story-circle" style="border-color: #555;" onclick="document.getElementById('story_input').click()">
+                    <div class="w-full h-full rounded-full bg-[#1C1C1E] flex items-center justify-center text-white text-2xl">+</div>
+                </div>
+                <span class="text-[10px] font-bold">Meu Status</span>
+            </div>
+            <div id="stories-list" class="flex gap-4"></div>
+        </div>
 
         <div class="flex-1 overflow-y-auto no-scrollbar">
             <div id="tab-chats" class="divide-y divide-white/5"></div>
@@ -135,7 +158,7 @@
                 </div>
             </div>
             <div class="flex items-center gap-2 pr-2">
-                <button onclick="startCall('voice')" class="p-2 text-gray-500 hover:text-[#FF3B30]"><svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="2"><path d="M3 5a2 2 0 012-2h3.28a1 1 0 01.948.684l1.498 4.493a1 1 0 01-.502 1.21l-2.257 1.13a11.042 11.042 0 005.516 5.516l1.13-2.257a1 1 0 011.21-.502l4.493 1.498a1 1 0 01.684.949V19a2 2 0 01-2 2h-1C9.716 21 3 14.284 3 6V5z"/></svg></button>
+                <button onclick="initiateCall('voice')" class="p-2 text-gray-500 hover:text-[#FF3B30]"><svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="2"><path d="M3 5a2 2 0 012-2h3.28a1 1 0 01.948.684l1.498 4.493a1 1 0 01-.502 1.21l-2.257 1.13a11.042 11.042 0 005.516 5.516l1.13-2.257a1 1 0 011.21-.502l4.493 1.498a1 1 0 01.684.949V19a2 2 0 01-2 2h-1C9.716 21 3 14.284 3 6V5z"/></svg></button>
             </div>
         </header>
         <div id="msg-container" class="flex-1 overflow-y-auto p-5 flex flex-col gap-1 bg-fixed bg-center bg-cover no-scrollbar"></div>
@@ -165,6 +188,30 @@
                 <div class="context-item destructive" onclick="deleteMsg()">Apagar <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"/></svg></div>
             </div>
         </div>
+    </div>
+
+    <!-- Story Viewer -->
+    <div id="story-viewer" class="story-viewer" onclick="closeStory()">
+        <div class="story-progress" id="story-progress"></div>
+        <div class="flex-1 flex items-center justify-center relative">
+            <img id="story-img" class="max-w-full max-h-full object-contain">
+            <div id="story-text-container" class="absolute inset-0 flex items-center justify-center p-10 text-center text-3xl font-bold"></div>
+        </div>
+        <div id="story-caption" class="p-6 text-center bg-gradient-to-t from-black/80 to-transparent"></div>
+    </div>
+
+    <!-- Call Overlay -->
+    <div id="call-overlay">
+        <div class="text-center">
+            <img id="call-avatar" class="w-32 h-32 rounded-full mx-auto mb-4 border-4 border-[#FF3B30]">
+            <h2 id="call-name" class="text-2xl font-bold"></h2>
+            <p id="call-status" class="text-gray-400 mt-2">Chamando...</p>
+        </div>
+        <div class="flex gap-10">
+            <button id="btn-reject-call" onclick="rejectCall()" class="bg-red-500 p-6 rounded-full"><svg class="w-8 h-8 text-white" fill="currentColor" viewBox="0 0 24 24"><path d="M6.62 10.79a15.05 15.05 0 006.59 6.59l2.2-2.2a1 1 0 011.11-.27c1.12.45 2.33.69 3.58.69a1 1 0 011 1V20a1 1 0 01-1 1A17 17 0 013 4a1 1 0 011-1h3.5a1 1 0 011 1c0 1.25.24 2.46.69 3.58a1 1 0 01-.27 1.11l-2.2 2.2z"/></svg></button>
+            <button id="btn-accept-call" onclick="acceptCall()" class="bg-green-500 p-6 rounded-full hidden"><svg class="w-8 h-8 text-white" fill="currentColor" viewBox="0 0 24 24"><path d="M20 15.5c-1.25 0-2.45-.2-3.57-.57a1.02 1.02 0 00-1.02.24l-2.2 2.2a15.045 15.045 0 01-6.59-6.59l2.2-2.2a1 1 0 00.24-1.02A11.36 11.36 0 018.5 5c0-.55-.45-1-1-1H4c-.55 0-1 .45-1 1 0 9.39 7.61 17 17 17 .55 0 1-.45 1-1v-3.5c0-.55-.45-1-1-1z"/></svg></button>
+        </div>
+        <audio id="ringtone" src="https://assets.mixkit.co/sfx/preview/mixkit-outgoing-call-tone-2534.mp3" loop></audio>
     </div>
 
     <!-- Modals -->
@@ -211,10 +258,12 @@
 
     <input type="file" id="avatar_file" hidden accept="image/*" onchange="upload('avatar', event)">
     <input type="file" id="media_input" hidden accept="image/*,video/*,audio/*" onchange="sendMedia(event)">
+    <input type="file" id="story_input" hidden accept="image/*,video/*" onchange="postStory(event)">
 
     <script>
         const socket = io({ reconnection: true, reconnectionAttempts: Infinity });
         let me = null, active = null, selectedMsgId = null, longPressTimer = null;
+        let peer, currentCall, localStream;
 
         function toggleAuth() {
             const isReg = document.getElementById('d_auth').classList.toggle('hidden');
@@ -246,9 +295,125 @@
             document.getElementById('login-screen').classList.add('hidden');
             document.getElementById('main-app').classList.remove('hidden');
             socket.emit('join', me.username);
-            updateUI(); loadChats();
+            initPeer();
+            updateUI(); loadChats(); loadStories();
         }
 
+        // --- PEERJS & CALLS ---
+        function initPeer() {
+            peer = new Peer(me.username + '_peer');
+            peer.on('call', call => {
+                currentCall = call;
+                showIncomingCall(call.peer.replace('_peer', ''));
+            });
+        }
+
+        function initiateCall(type) {
+            if (!active) return;
+            document.getElementById('call-overlay').style.display = 'flex';
+            document.getElementById('call-name').innerText = active;
+            document.getElementById('call-status').innerText = 'Chamando...';
+            document.getElementById('ringtone').play();
+            
+            navigator.mediaDevices.getUserMedia({ audio: true, video: type === 'video' }).then(stream => {
+                localStream = stream;
+                const call = peer.call(active + '_peer', stream);
+                currentCall = call;
+                setupCallEvents(call);
+            });
+        }
+
+        function showIncomingCall(from) {
+            document.getElementById('call-overlay').style.display = 'flex';
+            document.getElementById('call-name').innerText = from;
+            document.getElementById('call-status').innerText = 'Chamada recebida';
+            document.getElementById('btn-accept-call').classList.remove('hidden');
+            document.getElementById('ringtone').play();
+        }
+
+        function acceptCall() {
+            navigator.mediaDevices.getUserMedia({ audio: true }).then(stream => {
+                localStream = stream;
+                currentCall.answer(stream);
+                setupCallEvents(currentCall);
+                document.getElementById('call-status').innerText = 'Em chamada';
+                document.getElementById('btn-accept-call').classList.add('hidden');
+                document.getElementById('ringtone').pause();
+            });
+        }
+
+        function rejectCall() {
+            if (currentCall) currentCall.close();
+            if (localStream) localStream.getTracks().forEach(t => t.stop());
+            document.getElementById('call-overlay').style.display = 'none';
+            document.getElementById('ringtone').pause();
+        }
+
+        function setupCallEvents(call) {
+            call.on('stream', remoteStream => {
+                const audio = new Audio();
+                audio.srcObject = remoteStream;
+                audio.play();
+                document.getElementById('call-status').innerText = 'Conectado';
+                document.getElementById('ringtone').pause();
+            });
+            call.on('close', () => rejectCall());
+        }
+
+        // --- STORIES ---
+        async function loadStories() {
+            const stories = await fetch('/stories').then(r => r.json());
+            const list = document.getElementById('stories-list');
+            list.innerHTML = stories.map(s => `
+                <div class="flex flex-col items-center gap-1" onclick="viewStory(${JSON.stringify(s).replace(/"/g, '&quot;')})">
+                    <div class="story-circle">
+                        <img src="${s.avatar || 'https://ui-avatars.com/api/?name='+s.username}">
+                    </div>
+                    <span class="text-[10px] font-bold">${s.display_name}</span>
+                </div>
+            `).join('');
+        }
+
+        async function postStory(ev) {
+            const file = ev.target.files[0]; if(!file) return;
+            const reader = new FileReader(); reader.readAsDataURL(file);
+            reader.onload = async () => {
+                await fetch('/stories', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ username: me.username, content: reader.result, type: file.type.split('/')[0] })
+                });
+                loadStories();
+            };
+        }
+
+        let storyTimer;
+        function viewStory(s) {
+            const viewer = document.getElementById('story-viewer');
+            const img = document.getElementById('story-img');
+            const text = document.getElementById('story-text-container');
+            viewer.style.display = 'flex';
+            if (s.type === 'image') {
+                img.src = s.content; img.style.display = 'block'; text.style.display = 'none';
+            } else {
+                img.style.display = 'none'; text.style.display = 'flex'; text.innerText = s.content;
+            }
+            document.getElementById('story-caption').innerText = s.caption || '';
+            
+            const progress = document.getElementById('story-progress');
+            progress.innerHTML = '<div class="story-bar"><div class="story-bar-fill" id="fill"></div></div>';
+            setTimeout(() => document.getElementById('fill').style.width = '100%', 100);
+            document.getElementById('fill').style.transition = 'width 5s linear';
+            
+            storyTimer = setTimeout(closeStory, 5000);
+        }
+
+        function closeStory() {
+            document.getElementById('story-viewer').style.display = 'none';
+            clearTimeout(storyTimer);
+        }
+
+        // --- CHATS & MESSAGES ---
         async function loadChats() {
             if (!me) return;
             const d = await fetch('/chats/'+me.username).then(r=>r.json());
@@ -445,15 +610,6 @@
             if (mediaRecorder && mediaRecorder.state !== 'inactive') {
                 mediaRecorder.stop();
                 document.getElementById('btn-audio').classList.remove('text-[#FF3B30]', 'pulse-red');
-            }
-        }
-
-        function startCall(type) {
-            if (!active) return;
-            const confirmCall = confirm(`Iniciar chamada de ${type === 'voice' ? 'voz' : 'vídeo'} com ${active}?`);
-            if (confirmCall) {
-                socket.emit('send_msg', { s: me.username, r: active, c: `Chamada de ${type} iniciada`, type: 'call' });
-                alert("Funcionalidade de chamada em tempo real (WebRTC) requer servidor de sinalização dedicado. Chamada registrada no chat.");
             }
         }
 
