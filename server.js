@@ -38,7 +38,8 @@ db.serialize(() => {
         type TEXT DEFAULT 'text', 
         status INTEGER DEFAULT 0, 
         time TEXT NOT NULL, 
-        caption TEXT
+        caption TEXT,
+        reaction TEXT DEFAULT NULL
     )`);
     db.run("CREATE INDEX IF NOT EXISTS idx_msg_users ON messages(s, r)");
     
@@ -98,7 +99,6 @@ io.on('connection', (socket) => {
         
         if (!onlineUsers.has(un)) {
             onlineUsers.set(un, new Set());
-            // Atualizar no arquivo apenas se o status mudar de offline para online
             let users = getUsers();
             let uIdx = users.findIndex(u => u.username === un);
             if (uIdx !== -1) {
@@ -133,11 +133,9 @@ io.on('connection', (socket) => {
                 const msgId = this.lastID;
                 db.get("SELECT * FROM messages WHERE id = ?", [msgId], (e, row) => {
                     if(row) {
-                        // Entrega garantida para todas as sessões do destinatário
                         if(onlineUsers.has(recipient)) {
                             onlineUsers.get(recipient).forEach(sid => io.to(sid).emit('new_msg', row));
                         }
-                        // Sincronização para todas as sessões do remetente
                         if(onlineUsers.has(sender)) {
                             onlineUsers.get(sender).forEach(sid => io.to(sid).emit('new_msg', row));
                         }
@@ -147,10 +145,38 @@ io.on('connection', (socket) => {
         );
     });
 
+    socket.on('delete_msg', (data) => {
+        const { id, username } = data;
+        db.get("SELECT * FROM messages WHERE id = ?", [id], (err, row) => {
+            if (row && (row.s === username || row.r === username)) {
+                db.run("DELETE FROM messages WHERE id = ?", [id], (err) => {
+                    if (!err) {
+                        if (onlineUsers.has(row.s)) onlineUsers.get(row.s).forEach(sid => io.to(sid).emit('msg_deleted', id));
+                        if (onlineUsers.has(row.r)) onlineUsers.get(row.r).forEach(sid => io.to(sid).emit('msg_deleted', id));
+                    }
+                });
+            }
+        });
+    });
+
+    socket.on('react_msg', (data) => {
+        const { id, reaction, username } = data;
+        db.get("SELECT * FROM messages WHERE id = ?", [id], (err, row) => {
+            if (row) {
+                db.run("UPDATE messages SET reaction = ? WHERE id = ?", [reaction, id], (err) => {
+                    if (!err) {
+                        if (onlineUsers.has(row.s)) onlineUsers.get(row.s).forEach(sid => io.to(sid).emit('msg_reacted', { id, reaction }));
+                        if (onlineUsers.has(row.r)) onlineUsers.get(row.r).forEach(sid => io.to(sid).emit('msg_reacted', { id, reaction }));
+                    }
+                });
+            }
+        });
+    });
+
     socket.on('mark_read', (data) => {
         if (!data.s || !data.r) return;
-        const sender = data.s.toLowerCase().trim(); // quem enviou
-        const reader = data.r.toLowerCase().trim(); // quem leu
+        const sender = data.s.toLowerCase().trim();
+        const reader = data.r.toLowerCase().trim();
         
         db.run("UPDATE messages SET status = 2 WHERE s = ? AND r = ? AND status < 2", [sender, reader], function(err) {
             if(!err && this.changes > 0) {
@@ -226,7 +252,6 @@ app.post('/login', async (req, res) => {
 
 app.get('/chats/:me', (req, res) => {
     const me = req.params.me.toLowerCase().trim();
-    // Query otimizada para pegar o último estado de cada chat
     db.all(`
         SELECT m.*, 
         CASE WHEN s = ? THEN r ELSE s END as contact
