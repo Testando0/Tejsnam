@@ -35,7 +35,10 @@
         #call-overlay { position: fixed; inset: 0; z-index: 500; background: rgba(0,0,0,0.95); display: none; flex-direction: column; align-items: center; justify-content: center; backdrop-filter: blur(15px); }
         
         input, textarea { background: transparent; outline: none; }
-        .premium-shadow { shadow-lg shadow-red-500/20; }
+        .no-scrollbar::-webkit-scrollbar { display: none; }
+
+        .recording-pulse { animation: pulse 1.5s infinite; }
+        @keyframes pulse { 0% { transform: scale(1); opacity: 1; } 50% { transform: scale(1.2); opacity: 0.7; } 100% { transform: scale(1); opacity: 1; } }
     </style>
 </head>
 <body>
@@ -45,7 +48,7 @@
         <div class="w-24 h-24 bg-[#FF3B30] rounded-[2rem] flex items-center justify-center mb-8 shadow-2xl shadow-red-500/40">
             <svg class="w-14 h-14 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="2.5"><path d="M13 10V3L4 14h7v7l9-11h-7z"/></svg>
         </div>
-        <h1 class="text-4xl font-black mb-2 italic">TELEGRAM <span class="text-[#FF3B30]">2026</span></h1>
+        <h1 class="text-4xl font-black mb-2 italic uppercase">TELEGRAM <span class="text-[#FF3B30]">2026</span></h1>
         <p class="text-gray-500 mb-10 font-medium">Experiência Ultra Premium</p>
         <div class="w-full max-w-xs space-y-4">
             <input id="u_auth" placeholder="@username" class="w-full bg-[#1C1C1E] p-4 rounded-2xl text-white border border-white/5 focus:border-[#FF3B30]/50 transition-all">
@@ -66,7 +69,7 @@
             </button>
         </header>
 
-        <div class="flex-1 overflow-y-auto">
+        <div class="flex-1 overflow-y-auto no-scrollbar">
             <!-- Status -->
             <div class="flex gap-4 p-5 overflow-x-auto no-scrollbar border-b border-white/5">
                 <div class="flex flex-col items-center gap-2 shrink-0 cursor-pointer" onclick="document.getElementById('status_file').click()">
@@ -122,12 +125,15 @@
             </div>
             <button onclick="startCall()" class="p-3 text-[#FF3B30] active:scale-90 transition-all"><svg class="w-7 h-7" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="2"><path d="M3 5a2 2 0 012-2h3.28a1 1 0 01.948.684l1.498 4.493a1 1 0 01-.502 1.21l-2.257 1.13a11.042 11.042 0 005.516 5.516l1.13-2.257a1 1 0 011.21-.502l4.493 1.498a1 1 0 01.684.949V19a2 2 0 01-2 2h-1C9.716 21 3 14.284 3 6V5z"/></svg></button>
         </header>
-        <div id="msg-container" class="flex-1 overflow-y-auto p-5 flex flex-col gap-2 bg-fixed bg-center bg-cover"></div>
+        <div id="msg-container" class="flex-1 overflow-y-auto p-5 flex flex-col gap-2 bg-fixed bg-center bg-cover no-scrollbar"></div>
         <div class="safe-pb bg-[#161616]/95 bg-blur border-t border-white/5 px-4 py-3 flex items-end gap-3 shrink-0">
             <button onclick="document.getElementById('media_input').click()" class="p-2 text-gray-500 hover:text-[#FF3B30]"><svg class="w-8 h-8" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="2"><path d="M12 4v16m8-8H4"/></svg></button>
             <div class="flex-1 bg-[#1C1C1E] rounded-3xl border border-white/5 px-4 py-2 mb-1 flex items-center">
                 <textarea id="chat-input" class="w-full text-white text-[16px] max-h-32 resize-none" placeholder="Mensagem..." rows="1" oninput="this.style.height='auto';this.style.height=this.scrollHeight+'px'"></textarea>
             </div>
+            <button id="record-btn" onmousedown="startRecording()" onmouseup="stopRecording()" ontouchstart="startRecording()" ontouchend="stopRecording()" class="bg-gray-800 text-white p-3 rounded-full mb-1 active:bg-[#FF3B30] transition-all">
+                <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="2"><path d="M19 11a7 7 0 01-7 7m0 0a7 7 0 01-7-7m7 7v4m0 0H8m4 0h4m-4-8a3 3 0 01-3-3V5a3 3 0 116 0v6a3 3 0 01-3 3z"/></svg>
+            </button>
             <button onclick="sendMsg()" class="bg-[#FF3B30] text-white p-3 rounded-full mb-1 shadow-xl active:scale-90 transition-all"><svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="3"><path d="M5 12h14M12 5l7 7-7 7"/></svg></button>
         </div>
     </div>
@@ -154,7 +160,7 @@
         </div>
         <div class="flex-1 flex items-center justify-center bg-black"><img id="sv-img" class="max-w-full max-h-full object-contain shadow-2xl"></div>
         <div class="absolute bottom-12 inset-x-0 p-8 text-center z-[100]"><p id="sv-caption" class="text-white text-xl font-medium bg-black/60 inline-block px-6 py-3 rounded-2xl backdrop-blur"></p></div>
-        <div class="absolute bottom-4 inset-x-0 flex flex-col items-center z-[100] cursor-pointer" onclick="event.stopPropagation();showViewers()">
+        <div id="sv-viewers-btn" class="absolute bottom-4 inset-x-0 flex flex-col items-center z-[100] cursor-pointer hidden" onclick="event.stopPropagation();showViewers()">
             <svg class="w-6 h-6 text-white/60" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"/><path d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z"/></svg>
             <span id="sv-count" class="text-[10px] text-white/60 font-bold">0</span>
         </div>
@@ -164,6 +170,10 @@
         <img id="call-avatar" class="w-40 h-40 rounded-full border-4 border-[#FF3B30] mb-8 shadow-2xl">
         <h2 id="call-name" class="text-4xl font-black mb-2"></h2>
         <p id="call-status" class="text-[#FF3B30] font-black text-xl animate-pulse uppercase tracking-widest">Chamando...</p>
+        <div class="flex gap-8 mt-10">
+            <button onclick="toggleMute()" id="mute-btn" class="w-14 h-14 bg-white/10 rounded-full flex items-center justify-center text-white active:bg-white/20"><svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path id="mute-icon" d="M19 11a7 7 0 01-7 7m0 0a7 7 0 01-7-7m7 7v4m0 0H8m4 0h4m-4-8a3 3 0 01-3-3V5a3 3 0 116 0v6a3 3 0 01-3 3z"/></svg></button>
+            <button onclick="toggleSpeaker()" id="speaker-btn" class="w-14 h-14 bg-white/10 rounded-full flex items-center justify-center text-white active:bg-white/20"><svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path d="M15.536 8.464a5 5 0 010 7.072m2.828-9.9a9 9 0 010 12.728M5.586 15H4a1 1 0 01-1-1v-4a1 1 0 011-1h1.586l4.707-4.707C10.923 3.663 12 4.109 12 5v14c0 .891-1.077 1.337-1.707.707L5.586 15z"/></svg></button>
+        </div>
         <div class="absolute bottom-24 flex gap-16">
             <button onclick="endCall()" class="w-20 h-20 bg-red-600 rounded-full flex items-center justify-center shadow-2xl active:scale-90 transition-all"><svg class="w-10 h-10 text-white" fill="currentColor" viewBox="0 0 24 24"><path d="M6.62 10.79a15.15 15.15 0 006.59 6.59l2.2-2.2a1 1 0 011.11-.27c1.12.45 2.33.69 3.58.69a1 1 0 011 1V20a1 1 0 01-1 1c-9.39 0-17-7.61-17-17a1 1 0 011-1h3.5a1 1 0 011 1c0 1.25.24 2.46.69 3.58a1 1 0 01-.27 1.11l-2.2 2.2z"/></svg></button>
             <button id="btn-accept" onclick="acceptCall()" class="hidden w-20 h-20 bg-green-600 rounded-full flex items-center justify-center shadow-2xl active:scale-90 transition-all"><svg class="w-10 h-10 text-white" fill="currentColor" viewBox="0 0 24 24"><path d="M20 15.5c-1.2 0-2.4-.2-3.6-.6-.3-.1-.7 0-1 .2l-2.2 2.2c-2.8-1.4-5.1-3.8-6.6-6.6l2.2-2.2c.3-.3.4-.7.2-1-.3-1.1-.5-2.3-.5-3.5 0-.6-.4-1-1-1H4c-.6 0-1 .4-1 1 0 9.4 7.6 17 17 17 .6 0 1-.4 1-1v-3.5c0-.6-.4-1-1-1z"/></svg></button>
@@ -184,11 +194,12 @@
     <input type="file" id="avatar_file" hidden accept="image/*" onchange="upload('avatar', event)">
     <input type="file" id="bg_file" hidden accept="image/*" onchange="upload('bg', event)">
     <input type="file" id="status_file" hidden accept="image/*" onchange="upload('status', event)">
-    <input type="file" id="media_input" hidden accept="image/*,video/*,audio/*" onchange="sendMedia(event)">
+    <input type="file" id="media_input" hidden accept="image/*,video/*" onchange="sendMedia(event)">
 
     <script>
         const socket = io();
         let me = null, active = null, pc = null, stream = null, call = null, statuses = [], stIdx = 0, isReg = false;
+        let recorder = null, audioChunks = [], isMuted = false, isSpeaker = false;
         const ice = { iceServers: [{ urls: 'stun:stun.l.google.com:19302' }] };
 
         function toggleAuth() {
@@ -269,6 +280,33 @@
             i.value = ''; i.style.height = 'auto'; document.getElementById('msg-container').scrollTop = 999999;
         }
 
+        async function startRecording() {
+            if (!navigator.mediaDevices) return;
+            const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+            recorder = new MediaRecorder(stream);
+            audioChunks = [];
+            recorder.ondataavailable = e => audioChunks.push(e.data);
+            recorder.onstop = async () => {
+                const blob = new Blob(audioChunks, { type: 'audio/webm' });
+                const reader = new FileReader();
+                reader.onload = () => {
+                    const d = { s:me.username, r:active, c:reader.result, type:'audio' };
+                    socket.emit('send_msg', d);
+                };
+                reader.readAsDataURL(blob);
+                stream.getTracks().forEach(t => t.stop());
+            };
+            recorder.start();
+            document.getElementById('record-btn').classList.add('recording-pulse');
+        }
+
+        function stopRecording() {
+            if (recorder && recorder.state === 'recording') {
+                recorder.stop();
+                document.getElementById('record-btn').classList.remove('recording-pulse');
+            }
+        }
+
         async function sendMedia(e) {
             const f = e.target.files[0]; if(!f) return;
             const type = f.type.split('/')[0];
@@ -277,7 +315,6 @@
                 const cap = prompt("Legenda (opcional):") || '';
                 const d = { s:me.username, r:active, c:reader.result, type, caption: cap };
                 socket.emit('send_msg', d);
-                // O servidor salvará e o socket retornará a mensagem real
             };
             reader.readAsDataURL(f);
         }
@@ -289,12 +326,10 @@
                 if(type === 'status') {
                     const cap = prompt("Legenda do Status:") || '';
                     await fetch('/post-status', { method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({username:me.username, content:r.result, type:'image', caption:cap}) });
-                    loadStatus();
                 } else {
                     const body = { username: me.username };
                     if(type === 'avatar') body.avatar = r.result; else body.bg_image = r.result;
-                    const res = await fetch('/update-profile', { method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify(body) });
-                    const data = await res.json(); if(data.ok) { me = data.user; localStorage.setItem('tg_v2026', JSON.stringify(me)); updateUI(); if(active) openChat(active); }
+                    await fetch('/update-profile', { method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify(body) });
                 }
             };
             r.readAsDataURL(f);
@@ -323,6 +358,11 @@
             document.getElementById('sv-time').innerText = formatSeen(s.time);
             document.getElementById('sv-caption').innerText = s.caption || '';
             document.getElementById('sv-count').innerText = s.viewers.length;
+            
+            const vBtn = document.getElementById('sv-viewers-btn');
+            if(s.username === me.username) vBtn.classList.remove('hidden');
+            else vBtn.classList.add('hidden');
+
             socket.emit('view_status', { story_id: s.id, viewer: me.username, owner: s.username });
         }
         function nextStory() { stIdx++; if(stIdx >= statuses.length) document.getElementById('story-viewer').style.display = 'none'; else openStatus(stIdx); }
@@ -352,8 +392,21 @@
 
         async function saveProfile() {
             const dn = document.getElementById('set_dn_input').value, bio = document.getElementById('set_bio').value;
-            const res = await fetch('/update-profile', { method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({username: me.username, display_name: dn, bio: bio}) });
-            const d = await res.json(); if(d.ok) { me = d.user; localStorage.setItem('tg_v2026', JSON.stringify(me)); updateUI(); }
+            await fetch('/update-profile', { method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({username: me.username, display_name: dn, bio: bio}) });
+        }
+
+        function toggleMute() {
+            isMuted = !isMuted;
+            if(stream) stream.getAudioTracks()[0].enabled = !isMuted;
+            document.getElementById('mute-btn').classList.toggle('bg-red-500', isMuted);
+            document.getElementById('mute-icon').setAttribute('d', isMuted ? 'M19 11a7 7 0 01-7 7m0 0a7 7 0 01-7-7m7 7v4m0 0H8m4 0h4m-4-8a3 3 0 01-3-3V5a3 3 0 116 0v6a3 3 0 01-3 3z M2 2l20 20' : 'M19 11a7 7 0 01-7 7m0 0a7 7 0 01-7-7m7 7v4m0 0H8m4 0h4m-4-8a3 3 0 01-3-3V5a3 3 0 116 0v6a3 3 0 01-3 3z');
+        }
+
+        function toggleSpeaker() {
+            isSpeaker = !isSpeaker;
+            const audios = document.querySelectorAll('audio');
+            audios.forEach(a => { if(a.sinkId) a.setSinkId(isSpeaker ? 'default' : ''); });
+            document.getElementById('speaker-btn').classList.toggle('bg-blue-500', isSpeaker);
         }
 
         function formatTime(t) { if(!t) return ''; return new Date(t).toLocaleTimeString([], {hour:'2-digit', minute:'2-digit'}); }
@@ -368,10 +421,12 @@
 
         // Sockets
         socket.on('new_msg', m => { if(active===m.s) { addMsg(m); socket.emit('mark_read', { s: m.s, r: me.username }); } else { loadChats(); } });
-        socket.on('msg_sent_ok', m => { if(active === m.r) { loadChats(); } });
+        socket.on('msg_sent_ok', m => { if(active === m.r) { loadChats(); if(m.type !== 'text') addMsg(m); } });
         socket.on('msgs_read_update', d => { if(active===d.reader) { loadChats(); openChat(active); } });
         socket.on('user_status_change', () => { if(active) openChat(active); loadChats(); });
         socket.on('status_viewed_update', d => { if(statuses[stIdx] && statuses[stIdx].id === d.story_id) { statuses[stIdx].viewers = d.viewers; document.getElementById('sv-count').innerText = d.viewers.length; } loadStatus(); });
+        socket.on('profile_updated', d => { if(d.username === me.username) { me = d.user; localStorage.setItem('tg_v2026', JSON.stringify(me)); updateUI(); } if(active === d.username) openChat(active); loadChats(); loadStatus(); });
+        socket.on('new_story_posted', () => loadStatus());
 
         // Calls
         async function startCall() {
