@@ -6,10 +6,13 @@ const bcrypt = require('bcryptjs');
 const path = require('path');
 const fs = require('fs');
 const cors = require('cors');
+const jwt = require('jsonwebtoken');
 
 const app = express();
 const server = http.createServer(app);
+const JWT_SECRET = 'tg2026_secret_key_ultra_premium';
 
+// --- CONFIGURAÇÃO DE ARQUIVOS E PASTAS ---
 const DATA_DIR = path.join(__dirname, 'data');
 const USERS_FILE = path.join(DATA_DIR, 'users.json');
 const PUBLIC_DIR = path.join(__dirname, 'public');
@@ -21,6 +24,7 @@ const AVATAR_DIR = path.join(PUBLIC_DIR, 'avatars');
 });
 if (!fs.existsSync(USERS_FILE)) fs.writeFileSync(USERS_FILE, '[]');
 
+// --- FUNÇÕES AUXILIARES ---
 const getUsers = () => {
     try { return JSON.parse(fs.readFileSync(USERS_FILE, 'utf8') || '[]'); }
     catch (e) { return []; }
@@ -39,13 +43,16 @@ const saveBase64File = (base64Data, subDir, prefix) => {
     } catch (e) { return ''; }
 };
 
-const io = new Server(server, { cors: { origin: "*" }, maxHttpBufferSize: 1e8 }); 
+const io = new Server(server, { 
+    cors: { origin: "*" }, 
+    maxHttpBufferSize: 1e8 // 100MB
+}); 
 
 app.use(cors());
 app.use(express.json({ limit: '100mb' }));
 app.use(express.static('public'));
 
-const db = new sqlite3.Database('./chat_database.db');
+const db = new sqlite3.Database(path.join(DATA_DIR, 'chat_database.db'));
 db.serialize(() => {
     db.run("CREATE TABLE IF NOT EXISTS messages (id INTEGER PRIMARY KEY AUTOINCREMENT, s TEXT, r TEXT, c TEXT, type TEXT, status INTEGER DEFAULT 0, time TEXT, caption TEXT)");
     db.run("CREATE TABLE IF NOT EXISTS stories (id INTEGER PRIMARY KEY AUTOINCREMENT, username TEXT, content TEXT, type TEXT, caption TEXT, bg_color TEXT, viewers TEXT DEFAULT '[]', time TEXT)");
@@ -55,22 +62,28 @@ const onlineUsers = {};
 
 io.on('connection', (socket) => {
     socket.on('join', (username) => { 
+        if (!username) return;
         const un = username.toLowerCase();
         socket.username = un; 
         onlineUsers[un] = socket.id;
+        
         let users = getUsers();
-        let user = users.find(u => u.username === un);
-        if (user) { user.is_online = true; saveUsers(users); }
+        let userIdx = users.findIndex(u => u.username === un);
+        if (userIdx !== -1) { 
+            users[userIdx].is_online = true; 
+            saveUsers(users); 
+        }
         io.emit('user_status_change', { username: un, status: 'online' });
     });
 
     socket.on('send_msg', (data) => {
+        if (!data.s || !data.r) return;
         const recipientSocketId = onlineUsers[data.r.toLowerCase()];
         const status = recipientSocketId ? 1 : 0; 
         const timestamp = new Date().toISOString();
         
         let content = data.c;
-        if (data.type !== 'text' && data.c.startsWith('data:')) {
+        if (data.type !== 'text' && data.c && data.c.startsWith('data:')) {
             content = saveBase64File(data.c, 'uploads', data.s);
         }
 
@@ -78,9 +91,12 @@ io.on('connection', (socket) => {
             [data.s, data.r, content, data.type, status, timestamp, data.caption || ''], 
             function(err) {
                 if(!err) {
-                    db.get("SELECT * FROM messages WHERE id = ?", [this.lastID], (e, row) => {
-                        if(recipientSocketId) io.to(recipientSocketId).emit('new_msg', row);
-                        socket.emit('msg_sent_ok', row);
+                    const lastID = this.lastID;
+                    db.get("SELECT * FROM messages WHERE id = ?", [lastID], (e, row) => {
+                        if(row) {
+                            if(recipientSocketId) io.to(recipientSocketId).emit('new_msg', row);
+                            socket.emit('msg_sent_ok', row);
+                        }
                     });
                 }
             }
@@ -88,22 +104,28 @@ io.on('connection', (socket) => {
     });
 
     socket.on('mark_read', (data) => {
+        if (!data.s || !data.r) return;
         db.run("UPDATE messages SET status = 2 WHERE s = ? AND r = ? AND status < 2", [data.s, data.r], function(err) {
-            if(!err && this.changes > 0 && onlineUsers[data.s.toLowerCase()]) {
-                io.to(onlineUsers[data.s.toLowerCase()]).emit('msgs_read_update', { reader: data.r });
+            if(!err && this.changes > 0) {
+                const senderSocketId = onlineUsers[data.s.toLowerCase()];
+                if (senderSocketId) {
+                    io.to(senderSocketId).emit('msgs_read_update', { reader: data.r });
+                }
             }
         });
     });
 
     socket.on('view_status', (data) => {
+        if (!data.story_id || !data.viewer) return;
         db.get("SELECT viewers FROM stories WHERE id = ?", [data.story_id], (err, row) => {
             if(row) {
                 let viewers = JSON.parse(row.viewers || '[]');
                 if(!viewers.includes(data.viewer)) {
                     viewers.push(data.viewer);
                     db.run("UPDATE stories SET viewers = ? WHERE id = ?", [JSON.stringify(viewers), data.story_id], () => {
-                        if(onlineUsers[data.owner.toLowerCase()]) {
-                            io.to(onlineUsers[data.owner.toLowerCase()]).emit('status_viewed_update', { story_id: data.story_id, viewers });
+                        const ownerSocketId = onlineUsers[data.owner.toLowerCase()];
+                        if(ownerSocketId) {
+                            io.to(ownerSocketId).emit('status_viewed_update', { story_id: data.story_id, viewers });
                         }
                     });
                 }
@@ -111,17 +133,34 @@ io.on('connection', (socket) => {
         });
     });
 
-    socket.on('call_user', (d) => { if(onlineUsers[d.to.toLowerCase()]) io.to(onlineUsers[d.to.toLowerCase()]).emit('call_incoming', d); });
-    socket.on('answer_call', (d) => { if(onlineUsers[d.to.toLowerCase()]) io.to(onlineUsers[d.to.toLowerCase()]).emit('call_answered', d); });
-    socket.on('ice_candidate', (d) => { if(onlineUsers[d.to.toLowerCase()]) io.to(onlineUsers[d.to.toLowerCase()]).emit('ice_candidate', d); });
-    socket.on('end_call', (d) => { if(onlineUsers[d.to.toLowerCase()]) io.to(onlineUsers[d.to.toLowerCase()]).emit('call_ended', d); });
+    // WebRTC Signaling
+    socket.on('call_user', (d) => { 
+        const targetId = onlineUsers[d.to.toLowerCase()];
+        if(targetId) io.to(targetId).emit('call_incoming', d); 
+    });
+    socket.on('answer_call', (d) => { 
+        const targetId = onlineUsers[d.to.toLowerCase()];
+        if(targetId) io.to(targetId).emit('call_answered', d); 
+    });
+    socket.on('ice_candidate', (d) => { 
+        const targetId = onlineUsers[d.to.toLowerCase()];
+        if(targetId) io.to(targetId).emit('ice_candidate', d); 
+    });
+    socket.on('end_call', (d) => { 
+        const targetId = onlineUsers[d.to.toLowerCase()];
+        if(targetId) io.to(targetId).emit('call_ended', d); 
+    });
 
     socket.on('disconnect', () => { 
         if(socket.username) {
             delete onlineUsers[socket.username];
             let users = getUsers();
-            let user = users.find(u => u.username === socket.username);
-            if (user) { user.is_online = false; user.last_seen = new Date().toISOString(); saveUsers(users); }
+            let userIdx = users.findIndex(u => u.username === socket.username);
+            if (userIdx !== -1) { 
+                users[userIdx].is_online = false; 
+                users[userIdx].last_seen = new Date().toISOString(); 
+                saveUsers(users); 
+            }
             io.emit('user_status_change', { username: socket.username, status: 'offline', last_seen: new Date().toISOString() });
         }
     });
@@ -129,11 +168,23 @@ io.on('connection', (socket) => {
 
 app.post('/register', async (req, res) => {
     const { username, password, display_name } = req.body;
+    if (!username || !password) return res.status(400).json({error: "Dados incompletos"});
+    
     let users = getUsers();
     const un = username.toLowerCase().trim();
     if(users.find(u => u.username === un)) return res.status(400).json({error: "Usuário já existe"});
+    
     const hash = await bcrypt.hash(password, 10);
-    const newUser = { username: un, display_name: display_name || un, password: hash, bio: 'Redspace 2026', avatar: '', bg_image: '', last_seen: null };
+    const newUser = { 
+        username: un, 
+        display_name: display_name || un, 
+        password: hash, 
+        bio: 'Telegram 2026 Premium User', 
+        avatar: '', 
+        bg_image: '', 
+        last_seen: null,
+        is_online: false
+    };
     users.push(newUser);
     saveUsers(users);
     res.json({ok: true});
@@ -141,16 +192,26 @@ app.post('/register', async (req, res) => {
 
 app.post('/login', async (req, res) => {
     const { username, password } = req.body;
+    if (!username || !password) return res.status(400).json({error: "Dados incompletos"});
+    
     const user = getUsers().find(u => u.username === username.toLowerCase().trim());
     if(user && await bcrypt.compare(password, user.password)) {
-        const { password, ...safe } = user; res.json(safe);
-    } else res.status(401).json({error: "Erro"});
+        const { password, ...safe } = user;
+        const token = jwt.sign({ username: safe.username }, JWT_SECRET);
+        res.json({ ...safe, token });
+    } else {
+        res.status(401).json({error: "Usuário ou senha incorretos"});
+    }
 });
 
 app.get('/user/:u', (req, res) => {
     const user = getUsers().find(u => u.username === req.params.u.toLowerCase());
-    if(user) { const { password, ...safe } = user; res.json(safe); }
-    else res.json({ username: req.params.u, display_name: req.params.u });
+    if(user) { 
+        const { password, ...safe } = user; 
+        res.json(safe); 
+    } else {
+        res.status(404).json({ error: "Usuário não encontrado" });
+    }
 });
 
 app.post('/update-profile', (req, res) => {
@@ -163,21 +224,20 @@ app.post('/update-profile', (req, res) => {
         if(avatar && avatar.startsWith('data:')) users[idx].avatar = saveBase64File(avatar, 'avatars', username);
         if(bg_image && bg_image.startsWith('data:')) users[idx].bg_image = saveBase64File(bg_image, 'uploads', 'bg_'+username);
         saveUsers(users);
-        io.emit('profile_updated', { username: username.toLowerCase(), user: users[idx] });
-        res.json({ok: true, user: users[idx]});
+        const { password, ...safe } = users[idx];
+        res.json({ok: true, user: safe});
     } else res.status(404).send();
 });
 
 app.post('/post-status', (req, res) => {
     const { username, content, type, caption, bg_color } = req.body;
     let fileUrl = content;
-    if (type !== 'text' && content.startsWith('data:')) fileUrl = saveBase64File(content, 'uploads', 'status_'+username);
+    if (type !== 'text' && content && content.startsWith('data:')) {
+        fileUrl = saveBase64File(content, 'uploads', 'status_'+username);
+    }
     db.run("INSERT INTO stories (username, content, type, caption, bg_color, time) VALUES (?, ?, ?, ?, ?, ?)", 
         [username, fileUrl, type, caption || '', bg_color || '', new Date().toISOString()], 
-        function() {
-            io.emit('new_story_posted', { username });
-            res.json({ok: true});
-        }
+        () => res.json({ok: true})
     );
 });
 
@@ -187,29 +247,49 @@ app.get('/get-status', (req, res) => {
         const users = getUsers();
         res.json(rows.map(r => {
             const u = users.find(user => user.username === r.username);
-            return { ...r, avatar: u?.avatar, display_name: u?.display_name || r.username, viewers: JSON.parse(r.viewers || '[]') };
+            return { 
+                ...r, 
+                avatar: u?.avatar, 
+                display_name: u?.display_name || r.username, 
+                viewers: JSON.parse(r.viewers || '[]') 
+            };
         }));
     });
 });
 
 app.get('/chats/:me', (req, res) => {
-    db.all("SELECT * FROM messages WHERE (s=? OR r=?) ORDER BY time DESC", [req.params.me, req.params.me], (e, rows) => {
+    const me = req.params.me.toLowerCase();
+    db.all("SELECT * FROM messages WHERE (s=? OR r=?) ORDER BY time DESC", [me, me], (e, rows) => {
+        if (e) return res.status(500).json([]);
         const chats = {};
         rows.forEach(r => {
-            const c = r.s === req.params.me ? r.r : r.s;
-            if(!chats[c]) chats[c] = { contact: c, last_msg: r.c, last_time: r.time, unread: 0, type: r.type };
-            if(r.r === req.params.me && r.s === c && r.status < 2) chats[c].unread++;
+            const contact = r.s.toLowerCase() === me ? r.r.toLowerCase() : r.s.toLowerCase();
+            if(!chats[contact]) {
+                chats[contact] = { contact, last_msg: r.c, last_time: r.time, unread: 0, type: r.type };
+            }
+            if(r.r.toLowerCase() === me && r.s.toLowerCase() === contact && r.status < 2) {
+                chats[contact].unread++;
+            }
         });
         const users = getUsers();
         res.json(Object.values(chats).map(chat => {
             const u = users.find(u => u.username === chat.contact);
-            return { ...chat, display_name: u?.display_name || chat.contact, avatar: u?.avatar, is_online: u?.is_online };
+            return { 
+                ...chat, 
+                display_name: u?.display_name || chat.contact, 
+                avatar: u?.avatar, 
+                is_online: u?.is_online,
+                last_seen: u?.last_seen
+            };
         }));
     });
 });
 
 app.get('/messages/:u1/:u2', (req, res) => {
-    db.all("SELECT * FROM messages WHERE (s=? AND r=?) OR (s=? AND r=?) ORDER BY time ASC", [req.params.u1, req.params.u2, req.params.u2, req.params.u1], (e, r) => res.json(r || []));
+    const u1 = req.params.u1.toLowerCase();
+    const u2 = req.params.u2.toLowerCase();
+    db.all("SELECT * FROM messages WHERE (s=? AND r=?) OR (s=? AND r=?) ORDER BY time ASC", [u1, u2, u2, u1], (e, r) => res.json(r || []));
 });
 
-server.listen(3001, () => console.log('3001'));
+const PORT = process.env.PORT || 3001;
+server.listen(PORT, () => console.log(`Server running on port ${PORT}`));
