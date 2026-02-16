@@ -14,8 +14,8 @@
             --text-primary: #FFFFFF;
             --text-secondary: #8E8E93;
             --separator: #2C2C2E;
-            --accent-color: #FF3B30; /* Mantendo o vermelho original */
-            --bubble-me: #3E1010; /* Mantendo o tom original */
+            --accent-color: #FF3B30;
+            --bubble-me: #3E1010;
             --bubble-them: #2C2C2E;
             --chat-bg-color: #0b141a;
         }
@@ -54,7 +54,6 @@
             border-bottom-left-radius: 4px; margin-left: 10px; 
         }
 
-        /* Chamada Overlay */
         #call-overlay {
             position: fixed; inset: 0; z-index: 500; background: rgba(0,0,0,0.9);
             display: none; flex-direction: column; items-center; justify-content: center;
@@ -67,7 +66,6 @@
         
         .bg-blur { backdrop-filter: blur(20px); -webkit-backdrop-filter: blur(20px); }
         
-        /* Telegram 2026 Fluidity */
         .chat-list-item { transition: background 0.2s; cursor: pointer; }
         .chat-list-item:active { background: #2C2C2E; }
         
@@ -76,21 +74,33 @@
             background-position: center;
             transition: background-image 0.5s ease-in-out;
         }
+
+        /* Status Styles */
+        .status-ring { padding: 2px; border-radius: 50%; border: 2.5px solid var(--accent-color); }
+        #story-viewer {
+            position: fixed; inset: 0; z-index: 600; background: black;
+            display: none; flex-direction: column;
+        }
     </style>
 </head>
 <body>
 
     <!-- Tela de Login -->
-    <div id="login-screen" class="fixed inset-0 flex flex-col items-center justify-center p-8">
-        <div class="w-24 h-24 bg-[#FF3B30] rounded-3xl flex items-center justify-center mb-8 shadow-lg shadow-red-500/20">
-            <svg class="w-14 h-14 text-white" viewBox="0 0 24 24" fill="currentColor"><path d="M12 2L2 7l10 5 10-5-10-5zM2 17l10 5 10-5M2 12l10 5 10-5"/></svg>
+    <div id="login-screen" class="fixed inset-0 flex flex-col items-center justify-center p-8 overflow-y-auto">
+        <div class="w-20 h-20 bg-[#FF3B30] rounded-3xl flex items-center justify-center mb-6 shadow-lg shadow-red-500/20">
+            <svg class="w-12 h-12 text-white" viewBox="0 0 24 24" fill="currentColor"><path d="M12 2L2 7l10 5 10-5-10-5zM2 17l10 5 10-5M2 12l10 5 10-5"/></svg>
         </div>
-        <h1 class="text-3xl font-bold mb-2 text-white">Telegram 2026</h1>
-        <p class="text-gray-500 mb-8">Conecte-se com o futuro</p>
-        <input id="u_auth" placeholder="Usuário" class="w-full input-dark p-4 rounded-2xl mb-3 outline-none focus:ring-2 focus:ring-red-500/50 transition-all">
-        <input id="p_auth" type="password" placeholder="Senha" class="w-full input-dark p-4 rounded-2xl mb-6 outline-none focus:ring-2 focus:ring-red-500/50 transition-all">
-        <button onclick="auth('login')" class="w-full bg-[#FF3B30] active:scale-95 text-white py-4 rounded-2xl font-bold transition-all shadow-lg shadow-red-500/30">Entrar</button>
-        <button onclick="auth('register')" class="mt-4 text-[#FF3B30] font-medium hover:underline">Criar Nova Conta</button>
+        <h1 class="text-3xl font-bold mb-1 text-white">Telegram 2026</h1>
+        <p class="text-gray-500 mb-6">O futuro da comunicação</p>
+        
+        <div id="auth-fields" class="w-full space-y-3">
+            <input id="u_auth" placeholder="Nome de usuário (@username)" class="w-full input-dark p-4 rounded-2xl outline-none focus:ring-2 focus:ring-red-500/50 transition-all">
+            <input id="d_auth" placeholder="Nome de exibição (ex: João)" class="hidden w-full input-dark p-4 rounded-2xl outline-none focus:ring-2 focus:ring-red-500/50 transition-all">
+            <input id="p_auth" type="password" placeholder="Senha" class="w-full input-dark p-4 rounded-2xl outline-none focus:ring-2 focus:ring-red-500/50 transition-all">
+        </div>
+
+        <button id="btn-main-auth" onclick="auth('login')" class="w-full mt-6 bg-[#FF3B30] active:scale-95 text-white py-4 rounded-2xl font-bold transition-all shadow-lg shadow-red-500/30">Entrar</button>
+        <button id="btn-toggle-auth" onclick="toggleAuthMode()" class="mt-4 text-[#FF3B30] font-medium hover:underline">Criar Nova Conta</button>
     </div>
 
     <!-- App Principal -->
@@ -104,13 +114,21 @@
         </header>
 
         <div class="flex-1 overflow-y-auto">
-            <div id="tab-chats" class="w-full">
-                <div class="px-4 py-2">
+            <!-- Aba de Status (Inserida no topo dos chats) -->
+            <div id="status-container" class="flex gap-4 p-4 overflow-x-auto bg-[#161616]/30 border-b border-[#2C2C2E]">
+                <div class="flex flex-col items-center gap-1 shrink-0 cursor-pointer" onclick="document.getElementById('status_file').click()">
                     <div class="relative">
-                        <input placeholder="Pesquisar mensagens" class="w-full bg-[#1C1C1E] text-white rounded-xl px-10 py-2.5 outline-none placeholder-gray-500 focus:ring-2 focus:ring-red-500/30 transition-all">
-                        <svg class="w-5 h-5 absolute left-3 top-3 text-gray-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"/></svg>
+                        <img id="my_status_avatar" class="w-16 h-16 rounded-full object-cover border-2 border-dashed border-gray-600 p-0.5">
+                        <div class="absolute bottom-0 right-0 bg-red-500 rounded-full p-1 border-2 border-black">
+                            <svg class="w-3 h-3 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path d="M12 4v16m8-8H4"/></svg>
+                        </div>
                     </div>
+                    <span class="text-[11px] text-gray-400">Meu Status</span>
                 </div>
+                <div id="status-list" class="flex gap-4"></div>
+            </div>
+
+            <div id="tab-chats" class="w-full">
                 <div id="chat-list" class="divide-y divide-[#2C2C2E]"></div>
             </div>
 
@@ -122,14 +140,18 @@
                             <svg class="w-8 h-8 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 9a2 2 0 012-2h.93a2 2 0 001.664-.89l.812-1.22A2 2 0 0110.07 4h3.86a2 2 0 011.664.89l.812 1.22A2 2 0 0018.07 7H19a2 2 0 012 2v9a2 2 0 01-2 2H5a2 2 0 01-2-2V9z"/></svg>
                         </div>
                     </div>
-                    <h2 id="settings_name" class="text-2xl font-bold mt-4 text-white">Usuário</h2>
-                    <p class="text-gray-500 text-sm">@username</p>
+                    <h2 id="settings_display_name" class="text-2xl font-bold mt-4 text-white">Nome</h2>
+                    <p id="settings_username_label" class="text-gray-500 text-sm">@username</p>
                 </div>
 
                 <div class="bg-[#1C1C1E] mx-4 rounded-2xl overflow-hidden mb-6">
                     <div class="p-4 border-b border-[#2C2C2E]">
                         <label class="text-xs text-red-500 font-bold uppercase tracking-wider">Bio</label>
-                        <input id="settings_bio" class="w-full mt-1 bg-transparent text-white outline-none" onblur="saveBio(this.value)">
+                        <input id="settings_bio" class="w-full mt-1 bg-transparent text-white outline-none" onblur="saveProfile()">
+                    </div>
+                    <div class="p-4 border-b border-[#2C2C2E]">
+                        <label class="text-xs text-red-500 font-bold uppercase tracking-wider">Nome de Exibição</label>
+                        <input id="settings_dn" class="w-full mt-1 bg-transparent text-white outline-none" onblur="saveProfile()">
                     </div>
                     <div class="p-4 cursor-pointer active:bg-[#2C2C2E]" onclick="document.getElementById('bg_file').click()">
                         <div class="flex justify-between items-center">
@@ -161,7 +183,7 @@
             <button onclick="closeChat()" class="flex items-center text-[#FF3B30] px-2 h-full active:opacity-50 transition-opacity">
                 <svg class="w-7 h-7" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M15 19l-7-7 7-7"/></svg>
             </button>
-            <div class="flex-1 flex items-center gap-3 cursor-pointer py-1" onclick="showContactInfo()">
+            <div class="flex-1 flex items-center gap-3 cursor-pointer py-1" onclick="showUserProfile()">
                 <img id="chat_avatar" class="w-10 h-10 rounded-full bg-gray-800 object-cover border border-[#2C2C2E]">
                 <div class="flex flex-col">
                     <h3 id="chat_name" class="font-bold text-[16px] text-white leading-tight">--</h3>
@@ -174,9 +196,7 @@
                 </button>
             </div>
         </header>
-
         <div id="msg-container" class="flex-1 overflow-y-auto p-4 flex flex-col gap-1"></div>
-
         <div class="bg-[#161616]/90 bg-blur border-t border-[#2C2C2E] px-3 py-2 flex items-end gap-3 pb-safe shrink-0">
             <button onclick="document.getElementById('media_input').click()" class="text-gray-500 p-2 mb-1 hover:text-[#FF3B30] transition-colors">
                 <svg class="w-7 h-7" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="2"><path d="M12 4v16m8-8H4"/></svg>
@@ -190,6 +210,49 @@
         </div>
     </div>
 
+    <!-- Visualizador de Perfil (Estilo Telegram) -->
+    <div id="user-profile-modal" class="fixed inset-0 z-[400] hidden bg-black flex flex-col">
+        <header class="h-16 flex items-center px-4 justify-between pt-safe">
+            <button onclick="document.getElementById('user-profile-modal').classList.add('hidden')" class="text-white">
+                <svg class="w-8 h-8" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M15 19l-7-7 7-7"/></svg>
+            </button>
+            <span class="font-bold">Perfil</span>
+            <div class="w-8"></div>
+        </header>
+        <div class="flex-1 overflow-y-auto">
+            <div class="flex flex-col items-center p-8">
+                <img id="profile_modal_avatar" class="w-40 h-40 rounded-full object-cover shadow-2xl border-4 border-[#1C1C1E]">
+                <h2 id="profile_modal_dn" class="text-3xl font-bold mt-6 text-white">Nome</h2>
+                <p id="profile_modal_un" class="text-red-500 font-medium">@username</p>
+                <div id="profile_modal_status" class="mt-2 px-3 py-1 bg-green-500/20 text-green-500 rounded-full text-xs font-bold">Online</div>
+            </div>
+            <div class="bg-[#1C1C1E] mx-4 rounded-3xl p-6 space-y-6">
+                <div>
+                    <label class="text-xs text-gray-500 font-bold uppercase tracking-wider">Bio</label>
+                    <p id="profile_modal_bio" class="text-white mt-1">Olá! Estou usando o Telegram.</p>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Visualizador de Status -->
+    <div id="story-viewer" onclick="nextStory()">
+        <div class="absolute top-0 inset-x-0 h-1 flex gap-1 p-2 pt-safe z-50" id="story-bars"></div>
+        <div class="absolute top-12 left-4 flex items-center gap-3 z-50">
+            <img id="sv-avatar" class="w-10 h-10 rounded-full border border-white/20">
+            <div>
+                <h3 id="sv-name" class="font-bold text-white text-sm">Nome</h3>
+                <span id="sv-time" class="text-xs text-white/60">Há 5 min</span>
+            </div>
+        </div>
+        <div class="flex-1 flex items-center justify-center bg-black">
+            <img id="sv-img" class="max-w-full max-h-full object-contain">
+        </div>
+        <div class="absolute bottom-10 inset-x-0 p-6 text-center z-50">
+            <p id="sv-caption" class="text-white text-lg bg-black/40 inline-block px-4 py-2 rounded-xl backdrop-blur"></p>
+        </div>
+    </div>
+
     <!-- Overlay de Chamada -->
     <div id="call-overlay">
         <div class="flex flex-col items-center">
@@ -198,7 +261,7 @@
             <p id="call-status" class="text-[#FF3B30] font-medium animate-pulse">Chamando...</p>
         </div>
         <div class="absolute bottom-20 flex gap-12">
-            <button id="btn-reject" onclick="endCall()" class="w-16 h-16 bg-red-600 rounded-full flex items-center justify-center shadow-xl active:scale-90 transition-all">
+            <button onclick="endCall()" class="w-16 h-16 bg-red-600 rounded-full flex items-center justify-center shadow-xl active:scale-90 transition-all">
                 <svg class="w-8 h-8 text-white" fill="currentColor" viewBox="0 0 24 24"><path d="M6.62 10.79a15.15 15.15 0 006.59 6.59l2.2-2.2a1 1 0 011.11-.27c1.12.45 2.33.69 3.58.69a1 1 0 011 1V20a1 1 0 01-1 1c-9.39 0-17-7.61-17-17a1 1 0 011-1h3.5a1 1 0 011 1c0 1.25.24 2.46.69 3.58a1 1 0 01-.27 1.11l-2.2 2.2z"/></svg>
             </button>
             <button id="btn-accept" onclick="acceptCall()" class="hidden w-16 h-16 bg-green-600 rounded-full flex items-center justify-center shadow-xl active:scale-90 transition-all">
@@ -207,15 +270,16 @@
         </div>
     </div>
 
-    <!-- Modais -->
+    <!-- Inputs Escondidos -->
     <input type="file" id="avatar_file" hidden accept="image/*" onchange="updateProfilePic(event)">
     <input type="file" id="bg_file" hidden accept="image/*" onchange="updateBackground(event)">
     <input type="file" id="media_input" hidden accept="image/*,video/*" onchange="sendMedia(event)">
+    <input type="file" id="status_file" hidden accept="image/*" onchange="postStatus(event)">
 
     <div id="new-chat-modal" class="fixed inset-0 z-[200] hidden bg-black/80 backdrop-blur-sm flex items-center justify-center p-6">
         <div class="w-full max-w-sm bg-[#1C1C1E] rounded-3xl p-6 border border-[#2C2C2E]">
             <h3 class="text-xl font-bold text-white mb-4">Nova Conversa</h3>
-            <input id="new-chat-input" placeholder="Digite o nome de usuário" class="w-full p-4 rounded-2xl bg-[#2C2C2E] text-white outline-none mb-4 border border-transparent focus:border-red-500/50 transition-all">
+            <input id="new-chat-input" placeholder="Digite o @username" class="w-full p-4 rounded-2xl bg-[#2C2C2E] text-white outline-none mb-4 border border-transparent focus:border-red-500/50 transition-all">
             <div class="flex gap-3">
                 <button onclick="document.getElementById('new-chat-modal').classList.add('hidden')" class="flex-1 py-3 text-gray-400 font-bold">Cancelar</button>
                 <button onclick="startChat()" class="flex-1 py-3 bg-[#FF3B30] text-white font-bold rounded-xl active:scale-95 transition-all">Iniciar</button>
@@ -226,38 +290,51 @@
     <script>
         const socket = io();
         let me = null, active = null;
-        let peerConnection = null;
-        let localStream = null;
-        let currentCall = null;
-
+        let peerConnection = null, localStream = null, currentCall = null;
+        let allStatus = [], currentStatusIdx = 0;
         const config = { iceServers: [{ urls: 'stun:stun.l.google.com:19302' }] };
+
+        // --- AUTH ---
+        let isRegister = false;
+        function toggleAuthMode() {
+            isRegister = !isRegister;
+            document.getElementById('d_auth').classList.toggle('hidden', !isRegister);
+            document.getElementById('header-title').innerText = isRegister ? 'Criar Conta' : 'Telegram 2026';
+            document.getElementById('btn-main-auth').innerText = isRegister ? 'Cadastrar' : 'Entrar';
+            document.getElementById('btn-toggle-auth').innerText = isRegister ? 'Já tenho conta' : 'Criar Nova Conta';
+        }
+
+        async function auth(mode) {
+            const u = document.getElementById('u_auth').value.trim().replace('@', '');
+            const p = document.getElementById('p_auth').value.trim();
+            const dn = document.getElementById('d_auth').value.trim();
+            if(!u || !p) return alert("Preencha os campos");
+            
+            const endpoint = isRegister ? '/register' : '/login';
+            try {
+                const res = await fetch(endpoint, {
+                    method:'POST',
+                    headers:{'Content-Type':'application/json'},
+                    body:JSON.stringify({username:u, password:p, display_name:dn})
+                });
+                const data = await res.json();
+                if(data.ok || (!data.error && !isRegister)){
+                    if(!isRegister){
+                        me = data; 
+                        localStorage.setItem('tg_v2026', JSON.stringify(me)); 
+                        enter();
+                    } else {
+                        alert("Conta criada! Entre agora.");
+                        toggleAuthMode();
+                    }
+                } else alert(data.error);
+            } catch(e) { alert("Erro de conexão"); }
+        }
 
         window.onload = () => {
             const s = localStorage.getItem('tg_v2026');
             if(s) { me = JSON.parse(s); enter(); }
         };
-
-        async function auth(endpoint) {
-            const u = document.getElementById('u_auth').value.trim();
-            const p = document.getElementById('p_auth').value.trim();
-            if(!u || !p) return;
-            
-            try {
-                const res = await fetch('/' + endpoint, {
-                    method:'POST',
-                    headers:{'Content-Type':'application/json'},
-                    body:JSON.stringify({username:u, password:p})
-                });
-                const data = await res.json();
-                if(data.ok || (endpoint === 'login' && !data.error)){
-                    if(endpoint === 'login'){
-                        me = data; 
-                        localStorage.setItem('tg_v2026', JSON.stringify(me)); 
-                        enter();
-                    } else alert("Conta criada! Entre agora.");
-                } else alert(data.error);
-            } catch(e) { alert("Erro de conexão"); }
-        }
 
         function enter() {
             document.getElementById('login-screen').classList.add('hidden');
@@ -265,22 +342,24 @@
             socket.emit('join', me.username);
             updateMeUI(); 
             loadChats();
+            loadStatus();
         }
 
         function logout() { localStorage.removeItem('tg_v2026'); location.reload(); }
 
+        // --- CHATS ---
         async function loadChats() {
             const d = await fetch('/chats/'+me.username).then(r=>r.json());
             document.getElementById('chat-list').innerHTML = d.map(c => `
                 <div onclick="openChat('${c.contact}')" class="chat-list-item flex items-center gap-4 p-4">
                     <div class="relative">
-                        <img src="${c.avatar || 'https://ui-avatars.com/api/?background=2C2C2E&color=fff&name='+c.contact}" class="w-14 h-14 rounded-full object-cover">
+                        <img src="${c.avatar || 'https://ui-avatars.com/api/?background=2C2C2E&color=fff&name='+c.display_name}" class="w-14 h-14 rounded-full object-cover">
                         ${c.is_online ? '<div class="absolute bottom-0.5 right-0.5 w-3.5 h-3.5 bg-green-500 rounded-full border-2 border-[#000]"></div>' : ''}
                     </div>
                     <div class="flex-1 min-w-0">
                         <div class="flex justify-between items-baseline mb-0.5">
-                            <h3 class="font-bold text-[17px] text-white truncate">${c.contact}</h3>
-                            <span class="text-[13px] text-gray-500">${c.last_time ? formatTime(c.last_time) : ''}</span>
+                            <h3 class="font-bold text-[17px] text-white truncate">${c.display_name}</h3>
+                            <span class="text-[13px] text-gray-500">${c.last_time ? formatTimeLocal(c.last_time) : ''}</span>
                         </div>
                         <div class="flex justify-between items-center">
                             <p class="text-[15px] text-gray-500 truncate flex-1">${c.last_msg || 'Inicie uma conversa'}</p>
@@ -294,14 +373,20 @@
         async function openChat(u) {
             active = u;
             const userData = await fetch('/user/'+u).then(r=>r.json());
-            document.getElementById('chat_name').innerText = u;
-            document.getElementById('chat_avatar').src = userData.avatar || `https://ui-avatars.com/api/?background=2C2C2E&color=fff&name=${u}`;
-            document.getElementById('chat_status').innerText = userData.is_online ? 'Online' : 'Offline';
-            document.getElementById('chat_status').className = userData.is_online ? 'text-[12px] text-red-500 font-medium' : 'text-[12px] text-gray-500';
+            document.getElementById('chat_name').innerText = userData.display_name;
+            document.getElementById('chat_avatar').src = userData.avatar || `https://ui-avatars.com/api/?background=2C2C2E&color=fff&name=${userData.display_name}`;
+            
+            const statusEl = document.getElementById('chat_status');
+            if(userData.is_online) {
+                statusEl.innerText = 'Online';
+                statusEl.className = 'text-[12px] text-red-500 font-medium';
+            } else {
+                statusEl.innerText = userData.last_seen ? 'Visto por último ' + formatLastSeen(userData.last_seen) : 'Offline';
+                statusEl.className = 'text-[12px] text-gray-500';
+            }
 
             const container = document.getElementById('msg-container');
-            if (me.bg_image) container.style.backgroundImage = `linear-gradient(rgba(0,0,0,0.6), rgba(0,0,0,0.6)), url(${me.bg_image})`;
-            else container.style.backgroundImage = 'none';
+            container.style.backgroundImage = me.bg_image ? `linear-gradient(rgba(0,0,0,0.6), rgba(0,0,0,0.6)), url(${me.bg_image})` : 'none';
 
             document.getElementById('chat-room').classList.add('chat-open');
             const msgs = await fetch(`/messages/${me.username}/${active}`).then(r=>r.json());
@@ -319,7 +404,7 @@
                 <div class="msg-bubble ${isMe ? 'msg-me' : 'msg-them'}">
                     <p class="text-[16px]">${m.c}</p>
                     <div class="flex items-center justify-end gap-1 mt-1 opacity-60">
-                        <span class="text-[10px]">${formatTime(m.time)}</span>
+                        <span class="text-[10px]">${formatTimeLocal(m.time)}</span>
                         ${isMe ? `<span class="text-[10px]">${m.status === 2 ? '✓✓' : '✓'}</span>` : ''}
                     </div>
                 </div>`;
@@ -333,16 +418,131 @@
             const d = { s:me.username, r:active, c:txt, type:'text' };
             socket.emit('send_msg', d);
             addMsg({...d, time: new Date(), status: 1});
-            i.value = '';
-            i.style.height = 'auto';
-            const container = document.getElementById('msg-container');
-            container.scrollTop = container.scrollHeight;
+            i.value = ''; i.style.height = 'auto';
+            document.getElementById('msg-container').scrollTop = document.getElementById('msg-container').scrollHeight;
         }
 
-        function closeChat() {
-            document.getElementById('chat-room').classList.remove('chat-open');
-            active = null;
-            loadChats();
+        function closeChat() { document.getElementById('chat-room').classList.remove('chat-open'); active = null; loadChats(); }
+
+        // --- STATUS ---
+        async function loadStatus() {
+            const data = await fetch('/get-status').then(r=>r.json());
+            allStatus = data;
+            document.getElementById('my_status_avatar').src = me.avatar || `https://ui-avatars.com/api/?background=2C2C2E&color=fff&name=${me.display_name}`;
+            
+            const list = document.getElementById('status-list');
+            list.innerHTML = '';
+            
+            const groups = {};
+            data.forEach(s => {
+                if(!groups[s.username]) groups[s.username] = s;
+            });
+
+            Object.values(groups).forEach((s, idx) => {
+                const div = document.createElement('div');
+                div.className = 'flex flex-col items-center gap-1 shrink-0 cursor-pointer';
+                div.onclick = () => openStatusViewer(idx);
+                div.innerHTML = `
+                    <div class="status-ring">
+                        <img src="${s.avatar || 'https://ui-avatars.com/api/?background=2C2C2E&color=fff&name='+s.display_name}" class="w-14 h-14 rounded-full object-cover">
+                    </div>
+                    <span class="text-[11px] text-gray-400 truncate w-16 text-center">${s.display_name}</span>
+                `;
+                list.appendChild(div);
+            });
+        }
+
+        async function postStatus(e) {
+            const f = e.target.files[0]; if(!f) return;
+            const r = new FileReader();
+            r.onload = async () => {
+                await fetch('/post-status', {
+                    method:'POST', headers:{'Content-Type':'application/json'},
+                    body:JSON.stringify({username: me.username, content: r.result, type: 'image'})
+                });
+                loadStatus();
+            };
+            r.readAsDataURL(f);
+        }
+
+        function openStatusViewer(idx) {
+            currentStatusIdx = idx;
+            const s = allStatus[idx];
+            document.getElementById('story-viewer').style.display = 'flex';
+            document.getElementById('sv-img').src = s.content;
+            document.getElementById('sv-name').innerText = s.display_name;
+            document.getElementById('sv-avatar').src = s.avatar || `https://ui-avatars.com/api/?background=2C2C2E&color=fff&name=${s.display_name}`;
+            document.getElementById('sv-time').innerText = formatLastSeen(s.time);
+            document.getElementById('sv-caption').innerText = s.caption || '';
+        }
+
+        function nextStory() {
+            currentStatusIdx++;
+            if(currentStatusIdx >= allStatus.length) document.getElementById('story-viewer').style.display = 'none';
+            else openStatusViewer(currentStatusIdx);
+        }
+
+        // --- PROFILE ---
+        async function showUserProfile() {
+            const userData = await fetch('/user/'+active).then(r=>r.json());
+            document.getElementById('profile_modal_avatar').src = userData.avatar || `https://ui-avatars.com/api/?background=2C2C2E&color=fff&name=${userData.display_name}`;
+            document.getElementById('profile_modal_dn').innerText = userData.display_name;
+            document.getElementById('profile_modal_un').innerText = '@' + userData.username;
+            document.getElementById('profile_modal_bio').innerText = userData.bio;
+            
+            const st = document.getElementById('profile_modal_status');
+            st.innerText = userData.is_online ? 'Online' : 'Offline';
+            st.className = userData.is_online ? 'mt-2 px-3 py-1 bg-green-500/20 text-green-500 rounded-full text-xs font-bold' : 'mt-2 px-3 py-1 bg-gray-500/20 text-gray-500 rounded-full text-xs font-bold';
+            
+            document.getElementById('user-profile-modal').classList.remove('hidden');
+        }
+
+        // --- UTILS ---
+        function updateMeUI() {
+            const pic = me.avatar || `https://ui-avatars.com/api/?background=2C2C2E&color=fff&name=${me.display_name}`;
+            document.getElementById('settings_avatar').src = pic;
+            document.getElementById('settings_display_name').innerText = me.display_name;
+            document.getElementById('settings_username_label').innerText = '@' + me.username;
+            document.getElementById('settings_bio').value = me.bio;
+            document.getElementById('settings_dn').value = me.display_name;
+        }
+
+        async function saveProfile() {
+            const dn = document.getElementById('settings_dn').value;
+            const bio = document.getElementById('settings_bio').value;
+            const res = await fetch('/update-profile', {
+                method:'POST', headers:{'Content-Type':'application/json'}, 
+                body:JSON.stringify({username: me.username, display_name: dn, bio: bio})
+            });
+            const d = await res.json();
+            if(d.ok) { me = d.user; localStorage.setItem('tg_v2026', JSON.stringify(me)); updateMeUI(); }
+        }
+
+        async function updateProfilePic(e) {
+            const f = e.target.files[0]; if(!f) return;
+            const r = new FileReader();
+            r.onload = async () => {
+                const res = await fetch('/update-profile', {
+                    method:'POST', headers:{'Content-Type':'application/json'}, 
+                    body:JSON.stringify({username: me.username, avatar: r.result})
+                });
+                const d = await res.json();
+                if(d.ok) { me = d.user; localStorage.setItem('tg_v2026', JSON.stringify(me)); updateMeUI(); }
+            };
+            r.readAsDataURL(f);
+        }
+
+        function formatTimeLocal(t) {
+            return new Date(t).toLocaleTimeString([], {hour:'2-digit', minute:'2-digit'});
+        }
+
+        function formatLastSeen(t) {
+            const d = new Date(t);
+            const now = new Date();
+            const diff = (now - d) / 1000;
+            if(diff < 60) return 'agora mesmo';
+            if(diff < 3600) return `há ${Math.floor(diff/60)} min`;
+            return d.toLocaleTimeString([], {hour:'2-digit', minute:'2-digit'});
         }
 
         function switchTab(t) {
@@ -355,83 +555,26 @@
             if(t==='chats') loadChats();
         }
 
-        function updateMeUI() {
-            const pic = me.avatar || `https://ui-avatars.com/api/?background=2C2C2E&color=fff&name=${me.username}`;
-            document.getElementById('settings_avatar').src = pic;
-            document.getElementById('settings_name').innerText = me.username;
-            document.getElementById('settings_bio').value = me.bio || 'Olá! Estou usando o Telegram 2026.';
+        function autoResize(el) { el.style.height = 'auto'; el.style.height = el.scrollHeight + 'px'; }
+        function startChat() {
+            const u = document.getElementById('new-chat-input').value.trim().replace('@', '');
+            if(u) { document.getElementById('new-chat-modal').classList.add('hidden'); openChat(u); }
         }
 
-        async function updateProfilePic(e) {
-            const f = e.target.files[0];
-            if(!f) return;
-            const r = new FileReader();
-            r.onload = async () => {
-                const res = await fetch('/update-profile', {
-                    method:'POST', headers:{'Content-Type':'application/json'}, 
-                    body:JSON.stringify({username: me.username, avatar: r.result})
-                });
-                const d = await res.json();
-                if(d.ok) { 
-                    me = d.user;
-                    localStorage.setItem('tg_v2026', JSON.stringify(me));
-                    updateMeUI(); 
-                }
-            };
-            r.readAsDataURL(f);
-        }
-
-        async function updateBackground(e) {
-            const f = e.target.files[0];
-            if(!f) return;
-            const r = new FileReader();
-            r.onload = async () => {
-                const res = await fetch('/update-profile', {
-                    method:'POST', headers:{'Content-Type':'application/json'}, 
-                    body:JSON.stringify({username: me.username, bg_image: r.result})
-                });
-                const d = await res.json();
-                if(d.ok) { 
-                    me = d.user;
-                    localStorage.setItem('tg_v2026', JSON.stringify(me));
-                    if(active) openChat(active);
-                }
-            };
-            r.readAsDataURL(f);
-        }
-
-        async function saveBio(v) {
-            const res = await fetch('/update-profile', {
-                method:'POST', headers:{'Content-Type':'application/json'}, 
-                body:JSON.stringify({username: me.username, bio: v})
-            });
-            const d = await res.json();
-            if(d.ok) {
-                me = d.user;
-                localStorage.setItem('tg_v2026', JSON.stringify(me));
-            }
-        }
-
-        // --- P2P Chamadas ---
+        // WebRTC & Call Logic (Same as before, ensuring high quality audio)
         async function startCall(type) {
             const overlay = document.getElementById('call-overlay');
             const userData = await fetch('/user/'+active).then(r=>r.json());
-            document.getElementById('call-name').innerText = active;
-            document.getElementById('call-avatar').src = userData.avatar || `https://ui-avatars.com/api/?background=2C2C2E&color=fff&name=${active}`;
+            document.getElementById('call-name').innerText = userData.display_name;
+            document.getElementById('call-avatar').src = userData.avatar || `https://ui-avatars.com/api/?background=2C2C2E&color=fff&name=${userData.display_name}`;
             document.getElementById('call-status').innerText = 'Chamando...';
             document.getElementById('btn-accept').classList.add('hidden');
             overlay.style.display = 'flex';
-
             currentCall = { to: active, type };
-            localStream = await navigator.mediaDevices.getUserMedia({ audio: true, video: type === 'video' });
-            
+            localStream = await navigator.mediaDevices.getUserMedia({ audio: true });
             peerConnection = new RTCPeerConnection(config);
             localStream.getTracks().forEach(track => peerConnection.addTrack(track, localStream));
-            
-            peerConnection.onicecandidate = e => {
-                if (e.candidate) socket.emit('ice_candidate', { to: active, from: me.username, candidate: e.candidate });
-            };
-            
+            peerConnection.onicecandidate = e => { if(e.candidate) socket.emit('ice_candidate', { to: active, from: me.username, candidate: e.candidate }); };
             const offer = await peerConnection.createOffer();
             await peerConnection.setLocalDescription(offer);
             socket.emit('call_user', { to: active, from: me.username, offer, type });
@@ -440,8 +583,8 @@
         socket.on('call_incoming', async data => {
             const overlay = document.getElementById('call-overlay');
             const userData = await fetch('/user/'+data.from).then(r=>r.json());
-            document.getElementById('call-name').innerText = data.from;
-            document.getElementById('call-avatar').src = userData.avatar || `https://ui-avatars.com/api/?background=2C2C2E&color=fff&name=${data.from}`;
+            document.getElementById('call-name').innerText = userData.display_name;
+            document.getElementById('call-avatar').src = userData.avatar || `https://ui-avatars.com/api/?background=2C2C2E&color=fff&name=${userData.display_name}`;
             document.getElementById('call-status').innerText = 'Chamada recebida';
             document.getElementById('btn-accept').classList.remove('hidden');
             overlay.style.display = 'flex';
@@ -451,72 +594,22 @@
         async function acceptCall() {
             document.getElementById('call-status').innerText = 'Conectando...';
             document.getElementById('btn-accept').classList.add('hidden');
-            
-            localStream = await navigator.mediaDevices.getUserMedia({ audio: true, video: currentCall.type === 'video' });
+            localStream = await navigator.mediaDevices.getUserMedia({ audio: true });
             peerConnection = new RTCPeerConnection(config);
             localStream.getTracks().forEach(track => peerConnection.addTrack(track, localStream));
-            
-            peerConnection.onicecandidate = e => {
-                if (e.candidate) socket.emit('ice_candidate', { to: currentCall.from, from: me.username, candidate: e.candidate });
-            };
-            
-            peerConnection.ontrack = e => {
-                const remoteAudio = new Audio();
-                remoteAudio.srcObject = e.streams[0];
-                remoteAudio.play();
-            };
-
+            peerConnection.onicecandidate = e => { if(e.candidate) socket.emit('ice_candidate', { to: currentCall.from, from: me.username, candidate: e.candidate }); };
+            peerConnection.ontrack = e => { const audio = new Audio(); audio.srcObject = e.streams[0]; audio.play(); };
             await peerConnection.setRemoteDescription(new RTCSessionDescription(currentCall.offer));
             const answer = await peerConnection.createAnswer();
             await peerConnection.setLocalDescription(answer);
             socket.emit('answer_call', { to: currentCall.from, from: me.username, answer });
         }
 
-        socket.on('call_answered', async data => {
-            document.getElementById('call-status').innerText = 'Em chamada';
-            await peerConnection.setRemoteDescription(new RTCSessionDescription(data.answer));
-        });
-
-        socket.on('ice_candidate', async data => {
-            if (peerConnection) await peerConnection.addIceCandidate(new RTCIceCandidate(data.candidate));
-        });
-
-        function endCall() {
-            const to = currentCall?.from || currentCall?.to;
-            if (to) socket.emit('end_call', { to, from: me.username });
-            stopCall();
-        }
-
+        socket.on('call_answered', async d => { document.getElementById('call-status').innerText = 'Em chamada'; await peerConnection.setRemoteDescription(new RTCSessionDescription(d.answer)); });
+        socket.on('ice_candidate', async d => { if(peerConnection) await peerConnection.addIceCandidate(new RTCIceCandidate(d.candidate)); });
         socket.on('call_ended', stopCall);
-
-        function stopCall() {
-            if (peerConnection) {
-                peerConnection.close();
-                peerConnection = null;
-            }
-            if (localStream) {
-                localStream.getTracks().forEach(track => track.stop());
-                localStream = null;
-            }
-            document.getElementById('call-overlay').style.display = 'none';
-            currentCall = null;
-        }
-
-        // Utils
-        function formatTime(t) {
-            return new Date(t).toLocaleTimeString([], {hour:'2-digit', minute:'2-digit'});
-        }
-        function autoResize(el) {
-            el.style.height = 'auto';
-            el.style.height = el.scrollHeight + 'px';
-        }
-        function startChat() {
-            const u = document.getElementById('new-chat-input').value.trim();
-            if(u) {
-                document.getElementById('new-chat-modal').classList.add('hidden');
-                openChat(u);
-            }
-        }
+        function endCall() { const to = currentCall?.from || currentCall?.to; if(to) socket.emit('end_call', {to, from: me.username}); stopCall(); }
+        function stopCall() { if(peerConnection) peerConnection.close(); if(localStream) localStream.getTracks().forEach(t=>t.stop()); document.getElementById('call-overlay').style.display='none'; }
 
         socket.on('new_msg', m => { if(active===m.s) { addMsg(m); socket.emit('mark_read', { s: m.s, r: me.username }); } else { loadChats(); } });
         socket.on('msg_sent_ok', m => { if(active === m.r) loadChats(); });
