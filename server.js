@@ -10,7 +10,6 @@ const cors = require('cors');
 const app = express();
 const server = http.createServer(app);
 
-// --- CONFIGURAÇÃO DE ARQUIVOS E PASTAS ---
 const DATA_DIR = path.join(__dirname, 'data');
 const USERS_FILE = path.join(DATA_DIR, 'users.json');
 const PUBLIC_DIR = path.join(__dirname, 'public');
@@ -22,7 +21,6 @@ const AVATAR_DIR = path.join(PUBLIC_DIR, 'avatars');
 });
 if (!fs.existsSync(USERS_FILE)) fs.writeFileSync(USERS_FILE, '[]');
 
-// --- FUNÇÕES AUXILIARES ---
 const getUsers = () => {
     try { return JSON.parse(fs.readFileSync(USERS_FILE, 'utf8') || '[]'); }
     catch (e) { return []; }
@@ -113,7 +111,6 @@ io.on('connection', (socket) => {
         });
     });
 
-    // WebRTC Signaling
     socket.on('call_user', (d) => { if(onlineUsers[d.to.toLowerCase()]) io.to(onlineUsers[d.to.toLowerCase()]).emit('call_incoming', d); });
     socket.on('answer_call', (d) => { if(onlineUsers[d.to.toLowerCase()]) io.to(onlineUsers[d.to.toLowerCase()]).emit('call_answered', d); });
     socket.on('ice_candidate', (d) => { if(onlineUsers[d.to.toLowerCase()]) io.to(onlineUsers[d.to.toLowerCase()]).emit('ice_candidate', d); });
@@ -136,7 +133,7 @@ app.post('/register', async (req, res) => {
     const un = username.toLowerCase().trim();
     if(users.find(u => u.username === un)) return res.status(400).json({error: "Usuário já existe"});
     const hash = await bcrypt.hash(password, 10);
-    const newUser = { username: un, display_name: display_name || un, password: hash, bio: 'Telegram 2026', avatar: '', bg_image: '', last_seen: null };
+    const newUser = { username: un, display_name: display_name || un, password: hash, bio: 'Redspace 2026', avatar: '', bg_image: '', last_seen: null };
     users.push(newUser);
     saveUsers(users);
     res.json({ok: true});
@@ -166,6 +163,7 @@ app.post('/update-profile', (req, res) => {
         if(avatar && avatar.startsWith('data:')) users[idx].avatar = saveBase64File(avatar, 'avatars', username);
         if(bg_image && bg_image.startsWith('data:')) users[idx].bg_image = saveBase64File(bg_image, 'uploads', 'bg_'+username);
         saveUsers(users);
+        io.emit('profile_updated', { username: username.toLowerCase(), user: users[idx] });
         res.json({ok: true, user: users[idx]});
     } else res.status(404).send();
 });
@@ -176,7 +174,10 @@ app.post('/post-status', (req, res) => {
     if (type !== 'text' && content.startsWith('data:')) fileUrl = saveBase64File(content, 'uploads', 'status_'+username);
     db.run("INSERT INTO stories (username, content, type, caption, bg_color, time) VALUES (?, ?, ?, ?, ?, ?)", 
         [username, fileUrl, type, caption || '', bg_color || '', new Date().toISOString()], 
-        () => res.json({ok: true})
+        function() {
+            io.emit('new_story_posted', { username });
+            res.json({ok: true});
+        }
     );
 });
 
