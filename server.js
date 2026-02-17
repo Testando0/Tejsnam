@@ -51,8 +51,19 @@ db.serialize(() => {
         caption TEXT DEFAULT '', 
         bg_color TEXT DEFAULT '#FF3B30', 
         viewers TEXT DEFAULT '[]', 
+        likes TEXT DEFAULT '[]',
         time TEXT NOT NULL
     )`);
+    
+    db.run(`CREATE TABLE IF NOT EXISTS story_replies (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        story_id INTEGER NOT NULL,
+        username TEXT NOT NULL,
+        message TEXT NOT NULL,
+        time TEXT NOT NULL,
+        FOREIGN KEY(story_id) REFERENCES stories(id)
+    )`);
+    db.run("CREATE INDEX IF NOT EXISTS idx_story_replies ON story_replies(story_id)");
     
     // Tabelas de grupos
     db.run(`CREATE TABLE IF NOT EXISTS groups (
@@ -91,6 +102,18 @@ db.serialize(() => {
         reply_to INTEGER DEFAULT NULL
     )`);
     db.run("CREATE INDEX IF NOT EXISTS idx_group_messages ON group_messages(group_id, time)");
+    
+    // Tabela de amizades
+    db.run(`CREATE TABLE IF NOT EXISTS friendships (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        requester TEXT NOT NULL,
+        recipient TEXT NOT NULL,
+        status TEXT DEFAULT 'pending',
+        created_at TEXT NOT NULL,
+        updated_at TEXT NOT NULL,
+        UNIQUE(requester, recipient)
+    )`);
+    db.run("CREATE INDEX IF NOT EXISTS idx_friendships ON friendships(requester, recipient, status)");
 });
 
 // --- USER MANAGEMENT CORE ---
@@ -216,6 +239,68 @@ io.on('connection', (socket) => {
         if (onlineUsers.has(to.toLowerCase())) {
             onlineUsers.get(to.toLowerCase()).forEach(sid => {
                 io.to(sid).emit('call_ended');
+            });
+        }
+    });
+    
+    // --- GROUP CALL SYSTEM ---
+    socket.on('start_group_call', (data) => {
+        const { group_id, caller, type } = data;
+        
+        // Notificar todos os membros do grupo
+        db.all(`SELECT username FROM group_members WHERE group_id = ?`, [group_id], (err, members) => {
+            if (members) {
+                members.forEach(m => {
+                    if (m.username !== caller && onlineUsers.has(m.username)) {
+                        onlineUsers.get(m.username).forEach(sid => {
+                            io.to(sid).emit('group_call_started', { group_id, caller, type });
+                        });
+                    }
+                });
+            }
+        });
+    });
+    
+    socket.on('join_group_call', (data) => {
+        const { group_id, username, signal } = data;
+        
+        // Notificar outros participantes
+        db.all(`SELECT username FROM group_members WHERE group_id = ?`, [group_id], (err, members) => {
+            if (members) {
+                members.forEach(m => {
+                    if (m.username !== username && onlineUsers.has(m.username)) {
+                        onlineUsers.get(m.username).forEach(sid => {
+                            io.to(sid).emit('user_joined_group_call', { group_id, username, signal });
+                        });
+                    }
+                });
+            }
+        });
+    });
+    
+    socket.on('leave_group_call', (data) => {
+        const { group_id, username } = data;
+        
+        // Notificar outros participantes
+        db.all(`SELECT username FROM group_members WHERE group_id = ?`, [group_id], (err, members) => {
+            if (members) {
+                members.forEach(m => {
+                    if (m.username !== username && onlineUsers.has(m.username)) {
+                        onlineUsers.get(m.username).forEach(sid => {
+                            io.to(sid).emit('user_left_group_call', { group_id, username });
+                        });
+                    }
+                });
+            }
+        });
+    });
+    
+    socket.on('group_call_signal', (data) => {
+        const { group_id, from, to, signal } = data;
+        
+        if (onlineUsers.has(to)) {
+            onlineUsers.get(to).forEach(sid => {
+                io.to(sid).emit('group_call_signal', { group_id, from, signal });
             });
         }
     });
@@ -501,15 +586,70 @@ app.post('/update-profile', (req, res) => {
 
 // --- STORIES ENDPOINTS ---
 app.get('/stories', (req, res) => {
+    const { viewer } = req.query;
     const yesterday = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString();
+    
     db.all("SELECT * FROM stories WHERE time > ? ORDER BY time DESC", [yesterday], (err, rows) => {
         if (err) return res.status(500).json([]);
-        const users = getUsers();
-        const stories = rows.map(s => {
-            const u = users.find(u => u.username === s.username);
-            return { ...s, display_name: u?.display_name || s.username, avatar: u?.avatar || '' };
-        });
-        res.json(stories);
+        
+        // Se viewer for fornecido, filtrar apenas stories de amigos
+        if (viewer) {
+            const viewer_lower = viewer.toLowerCase().trim();
+            db.all(`SELECT * FROM friendships WHERE (requester = ? OR recipient = ?) AND status = 'accepted'`,
+                [viewer_lower, viewer_lower], (err, friendships) => {
+                    if (err) return res.status(500).json([]);
+                    
+                    const friendUsernames = friendships.map(f => 
+                        f.requester === viewer_lower ? f.recipient : f.requester
+                    );
+                    
+                    // Incluir próprios stories
+                    friendUsernames.push(viewer_lower);
+                    
+                    const filteredStories = rows.filter(s => friendUsernames.includes(s.username));
+                    
+                    const users = getUsers();
+                    const stories = filteredStories.map(s => {
+                        const u = users.find(u => u.username === s.username);
+                        return { 
+                            ...s, 
+                            display_name: u?.display_name || s.username, 
+                            avatar: u?.avatar || '',
+                            viewers: JSON.parse(s.viewers || '[]'),
+                            likes: JSON.parse(s.likes || '[]')
+                        };
+                    });
+                    
+                    // Agrupar por usuário
+                    const grouped = {};
+                    stories.forEach(s => {
+                        if (!grouped[s.username]) {
+                            grouped[s.username] = {
+                                username: s.username,
+                                display_name: s.display_name,
+                                avatar: s.avatar,
+                                stories: []
+                            };
+                        }
+                        grouped[s.username].stories.push(s);
+                    });
+                    
+                    res.json(Object.values(grouped));
+                });
+        } else {
+            const users = getUsers();
+            const stories = rows.map(s => {
+                const u = users.find(u => u.username === s.username);
+                return { 
+                    ...s, 
+                    display_name: u?.display_name || s.username, 
+                    avatar: u?.avatar || '',
+                    viewers: JSON.parse(s.viewers || '[]'),
+                    likes: JSON.parse(s.likes || '[]')
+                };
+            });
+            res.json(stories);
+        }
     });
 });
 
@@ -528,6 +668,124 @@ app.post('/stories', (req, res) => {
             res.json({ ok: true });
         }
     );
+});
+
+app.post('/stories/:id/view', (req, res) => {
+    const { id } = req.params;
+    const { username } = req.body;
+    
+    db.get('SELECT viewers FROM stories WHERE id = ?', [id], (err, row) => {
+        if (err || !row) return res.status(404).json({ error: 'Story não encontrado' });
+        
+        const viewers = JSON.parse(row.viewers || '[]');
+        if (!viewers.includes(username)) {
+            viewers.push(username);
+            db.run('UPDATE stories SET viewers = ? WHERE id = ?', [JSON.stringify(viewers), id], (err) => {
+                if (err) return res.status(500).json({ error: err.message });
+                res.json({ ok: true });
+            });
+        } else {
+            res.json({ ok: true });
+        }
+    });
+});
+
+app.post('/stories/:id/like', (req, res) => {
+    const { id } = req.params;
+    const { username } = req.body;
+    
+    db.get('SELECT likes, username as story_owner FROM stories WHERE id = ?', [id], (err, row) => {
+        if (err || !row) return res.status(404).json({ error: 'Story não encontrado' });
+        
+        const likes = JSON.parse(row.likes || '[]');
+        const index = likes.indexOf(username);
+        
+        if (index === -1) {
+            likes.push(username);
+        } else {
+            likes.splice(index, 1);
+        }
+        
+        db.run('UPDATE stories SET likes = ? WHERE id = ?', [JSON.stringify(likes), id], (err) => {
+            if (err) return res.status(500).json({ error: err.message });
+            
+            // Notificar dono do story
+            if (onlineUsers.has(row.story_owner)) {
+                onlineUsers.get(row.story_owner).forEach(sid => {
+                    io.to(sid).emit('story_liked', { story_id: id, username, liked: index === -1 });
+                });
+            }
+            
+            res.json({ ok: true, liked: index === -1 });
+        });
+    });
+});
+
+app.post('/stories/:id/reply', (req, res) => {
+    const { id } = req.params;
+    const { username, message } = req.body;
+    
+    if (!message) return res.status(400).json({ error: 'Mensagem obrigatória' });
+    
+    const time = new Date().toISOString();
+    
+    db.run('INSERT INTO story_replies (story_id, username, message, time) VALUES (?, ?, ?, ?)',
+        [id, username, message, time], function(err) {
+            if (err) return res.status(500).json({ error: err.message });
+            
+            // Buscar dono do story e notificar
+            db.get('SELECT username FROM stories WHERE id = ?', [id], (err, story) => {
+                if (story && onlineUsers.has(story.username)) {
+                    onlineUsers.get(story.username).forEach(sid => {
+                        io.to(sid).emit('story_reply', { story_id: id, from: username, message, time });
+                    });
+                }
+            });
+            
+            res.json({ ok: true, id: this.lastID });
+        });
+});
+
+app.get('/stories/:id/replies', (req, res) => {
+    const { id } = req.params;
+    
+    db.all('SELECT * FROM story_replies WHERE story_id = ? ORDER BY time ASC', [id], (err, rows) => {
+        if (err) return res.status(500).json([]);
+        
+        const users = getUsers();
+        const replies = rows.map(r => {
+            const u = users.find(u => u.username === r.username);
+            return {
+                ...r,
+                display_name: u?.display_name || r.username,
+                avatar: u?.avatar || ''
+            };
+        });
+        
+        res.json(replies);
+    });
+});
+
+app.get('/stories/:id/viewers', (req, res) => {
+    const { id } = req.params;
+    
+    db.get('SELECT viewers FROM stories WHERE id = ?', [id], (err, row) => {
+        if (err || !row) return res.status(404).json({ error: 'Story não encontrado' });
+        
+        const viewers = JSON.parse(row.viewers || '[]');
+        const users = getUsers();
+        
+        const viewersData = viewers.map(v => {
+            const u = users.find(u => u.username === v);
+            return {
+                username: v,
+                display_name: u?.display_name || v,
+                avatar: u?.avatar || ''
+            };
+        });
+        
+        res.json(viewersData);
+    });
 });
 
 // --- GROUPS ENDPOINTS ---
@@ -656,6 +914,68 @@ app.post('/groups/:group_id/leave', (req, res) => {
     });
 });
 
+app.post('/groups/:group_id/promote', (req, res) => {
+    const { group_id } = req.params;
+    const { username, promoted_by } = req.body;
+    
+    // Verificar se quem está promovendo é admin
+    db.get(`SELECT role FROM group_members WHERE group_id = ? AND username = ?`, [group_id, promoted_by], (err, member) => {
+        if (err || !member || member.role !== 'admin') {
+            return res.status(403).json({ error: 'Apenas admins podem promover membros' });
+        }
+        
+        db.run(`UPDATE group_members SET role = 'admin' WHERE group_id = ? AND username = ?`, [group_id, username], function(err) {
+            if (err) return res.status(500).json({ error: err.message });
+            
+            // Notificar todos os membros
+            db.all(`SELECT username FROM group_members WHERE group_id = ?`, [group_id], (err, members) => {
+                if (members) {
+                    members.forEach(m => {
+                        if (onlineUsers.has(m.username)) {
+                            onlineUsers.get(m.username).forEach(sid => {
+                                io.to(sid).emit('member_promoted', { group_id, username });
+                            });
+                        }
+                    });
+                }
+            });
+            
+            res.json({ ok: true });
+        });
+    });
+});
+
+app.post('/groups/:group_id/demote', (req, res) => {
+    const { group_id } = req.params;
+    const { username, demoted_by } = req.body;
+    
+    // Verificar se quem está rebaixando é admin
+    db.get(`SELECT role FROM group_members WHERE group_id = ? AND username = ?`, [group_id, demoted_by], (err, member) => {
+        if (err || !member || member.role !== 'admin') {
+            return res.status(403).json({ error: 'Apenas admins podem rebaixar membros' });
+        }
+        
+        db.run(`UPDATE group_members SET role = 'member' WHERE group_id = ? AND username = ?`, [group_id, username], function(err) {
+            if (err) return res.status(500).json({ error: err.message });
+            
+            // Notificar todos os membros
+            db.all(`SELECT username FROM group_members WHERE group_id = ?`, [group_id], (err, members) => {
+                if (members) {
+                    members.forEach(m => {
+                        if (onlineUsers.has(m.username)) {
+                            onlineUsers.get(m.username).forEach(sid => {
+                                io.to(sid).emit('member_demoted', { group_id, username });
+                            });
+                        }
+                    });
+                }
+            });
+            
+            res.json({ ok: true });
+        });
+    });
+});
+
 app.get('/groups/:group_id/messages', (req, res) => {
     const { group_id } = req.params;
     db.all(`SELECT * FROM group_messages WHERE group_id = ? ORDER BY time ASC`, [group_id], (err, rows) => {
@@ -694,6 +1014,160 @@ app.post('/groups/:group_id/update', (req, res) => {
             res.json({ ok: true });
         });
     });
+});
+
+// --- FRIENDSHIP ENDPOINTS ---
+app.post('/friends/request', (req, res) => {
+    const { requester, recipient } = req.body;
+    if (!requester || !recipient) return res.status(400).json({ error: 'Campos obrigatórios' });
+    
+    const req_lower = requester.toLowerCase().trim();
+    const rec_lower = recipient.toLowerCase().trim();
+    
+    if (req_lower === rec_lower) return res.status(400).json({ error: 'Não pode adicionar a si mesmo' });
+    
+    // Verificar se já existe uma solicitação
+    db.get(`SELECT * FROM friendships WHERE (requester = ? AND recipient = ?) OR (requester = ? AND recipient = ?)`,
+        [req_lower, rec_lower, rec_lower, req_lower], (err, existing) => {
+            if (existing) {
+                if (existing.status === 'accepted') return res.status(400).json({ error: 'Já são amigos' });
+                if (existing.status === 'pending') return res.status(400).json({ error: 'Solicitação já enviada' });
+            }
+            
+            const now = new Date().toISOString();
+            db.run(`INSERT INTO friendships (requester, recipient, status, created_at, updated_at) VALUES (?, ?, 'pending', ?, ?)`,
+                [req_lower, rec_lower, now, now], function(err) {
+                    if (err) return res.status(500).json({ error: err.message });
+                    
+                    // Notificar destinatário
+                    if (onlineUsers.has(rec_lower)) {
+                        onlineUsers.get(rec_lower).forEach(sid => {
+                            io.to(sid).emit('friend_request', { from: req_lower, id: this.lastID });
+                        });
+                    }
+                    
+                    res.json({ ok: true, id: this.lastID });
+                });
+        });
+});
+
+app.post('/friends/accept', (req, res) => {
+    const { request_id, username } = req.body;
+    if (!request_id || !username) return res.status(400).json({ error: 'Campos obrigatórios' });
+    
+    const user_lower = username.toLowerCase().trim();
+    const now = new Date().toISOString();
+    
+    db.get(`SELECT * FROM friendships WHERE id = ? AND recipient = ?`, [request_id, user_lower], (err, request) => {
+        if (err || !request) return res.status(404).json({ error: 'Solicitação não encontrada' });
+        
+        db.run(`UPDATE friendships SET status = 'accepted', updated_at = ? WHERE id = ?`, [now, request_id], (err) => {
+            if (err) return res.status(500).json({ error: err.message });
+            
+            // Notificar solicitante
+            if (onlineUsers.has(request.requester)) {
+                onlineUsers.get(request.requester).forEach(sid => {
+                    io.to(sid).emit('friend_accepted', { by: user_lower });
+                });
+            }
+            
+            res.json({ ok: true });
+        });
+    });
+});
+
+app.post('/friends/reject', (req, res) => {
+    const { request_id, username } = req.body;
+    if (!request_id || !username) return res.status(400).json({ error: 'Campos obrigatórios' });
+    
+    const user_lower = username.toLowerCase().trim();
+    
+    db.get(`SELECT * FROM friendships WHERE id = ? AND recipient = ?`, [request_id, user_lower], (err, request) => {
+        if (err || !request) return res.status(404).json({ error: 'Solicitação não encontrada' });
+        
+        db.run(`DELETE FROM friendships WHERE id = ?`, [request_id], (err) => {
+            if (err) return res.status(500).json({ error: err.message });
+            res.json({ ok: true });
+        });
+    });
+});
+
+app.post('/friends/remove', (req, res) => {
+    const { username, friend } = req.body;
+    if (!username || !friend) return res.status(400).json({ error: 'Campos obrigatórios' });
+    
+    const user_lower = username.toLowerCase().trim();
+    const friend_lower = friend.toLowerCase().trim();
+    
+    db.run(`DELETE FROM friendships WHERE (requester = ? AND recipient = ?) OR (requester = ? AND recipient = ?)`,
+        [user_lower, friend_lower, friend_lower, user_lower], (err) => {
+            if (err) return res.status(500).json({ error: err.message });
+            
+            // Notificar o outro usuário
+            if (onlineUsers.has(friend_lower)) {
+                onlineUsers.get(friend_lower).forEach(sid => {
+                    io.to(sid).emit('friend_removed', { by: user_lower });
+                });
+            }
+            
+            res.json({ ok: true });
+        });
+});
+
+app.get('/friends/:username', (req, res) => {
+    const username = req.params.username.toLowerCase().trim();
+    
+    db.all(`SELECT * FROM friendships WHERE (requester = ? OR recipient = ?) AND status = 'accepted'`,
+        [username, username], (err, rows) => {
+            if (err) return res.status(500).json([]);
+            
+            const users = getUsers();
+            const friends = rows.map(f => {
+                const friendUsername = f.requester === username ? f.recipient : f.requester;
+                const u = users.find(u => u.username === friendUsername);
+                return {
+                    username: friendUsername,
+                    display_name: u?.display_name || friendUsername,
+                    avatar: u?.avatar || '',
+                    is_online: u?.is_online || false,
+                    last_seen: u?.last_seen || null
+                };
+            });
+            
+            res.json(friends);
+        });
+});
+
+app.get('/friends/requests/:username', (req, res) => {
+    const username = req.params.username.toLowerCase().trim();
+    
+    db.all(`SELECT * FROM friendships WHERE recipient = ? AND status = 'pending'`, [username], (err, rows) => {
+        if (err) return res.status(500).json([]);
+        
+        const users = getUsers();
+        const requests = rows.map(r => {
+            const u = users.find(u => u.username === r.requester);
+            return {
+                id: r.id,
+                username: r.requester,
+                display_name: u?.display_name || r.requester,
+                avatar: u?.avatar || '',
+                created_at: r.created_at
+            };
+        });
+        
+        res.json(requests);
+    });
+});
+
+app.get('/friends/check/:user1/:user2', (req, res) => {
+    const user1 = req.params.user1.toLowerCase().trim();
+    const user2 = req.params.user2.toLowerCase().trim();
+    
+    db.get(`SELECT * FROM friendships WHERE ((requester = ? AND recipient = ?) OR (requester = ? AND recipient = ?)) AND status = 'accepted'`,
+        [user1, user2, user2, user1], (err, row) => {
+            res.json({ areFriends: !!row });
+        });
 });
 
 // --- HELPER: FILE SAVE ---
