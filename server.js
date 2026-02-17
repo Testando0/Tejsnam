@@ -53,6 +53,44 @@ db.serialize(() => {
         viewers TEXT DEFAULT '[]', 
         time TEXT NOT NULL
     )`);
+    
+    // Tabelas de grupos
+    db.run(`CREATE TABLE IF NOT EXISTS groups (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        group_id TEXT UNIQUE NOT NULL,
+        name TEXT NOT NULL,
+        description TEXT DEFAULT '',
+        avatar TEXT DEFAULT '',
+        created_by TEXT NOT NULL,
+        created_at TEXT NOT NULL,
+        settings TEXT DEFAULT '{}'
+    )`);
+    db.run("CREATE INDEX IF NOT EXISTS idx_group_id ON groups(group_id)");
+    
+    db.run(`CREATE TABLE IF NOT EXISTS group_members (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        group_id TEXT NOT NULL,
+        username TEXT NOT NULL,
+        role TEXT DEFAULT 'member',
+        joined_at TEXT NOT NULL,
+        muted INTEGER DEFAULT 0,
+        UNIQUE(group_id, username)
+    )`);
+    db.run("CREATE INDEX IF NOT EXISTS idx_group_members ON group_members(group_id, username)");
+    
+    db.run(`CREATE TABLE IF NOT EXISTS group_messages (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        group_id TEXT NOT NULL,
+        sender TEXT NOT NULL,
+        content TEXT,
+        type TEXT DEFAULT 'text',
+        time TEXT NOT NULL,
+        caption TEXT,
+        reaction TEXT DEFAULT NULL,
+        pinned INTEGER DEFAULT 0,
+        reply_to INTEGER DEFAULT NULL
+    )`);
+    db.run("CREATE INDEX IF NOT EXISTS idx_group_messages ON group_messages(group_id, time)");
 });
 
 // --- USER MANAGEMENT CORE ---
@@ -227,6 +265,114 @@ io.on('connection', (socket) => {
         });
     });
 
+    // --- GROUP MESSAGE EVENTS ---
+    socket.on('send_group_msg', (data) => {
+        if (!data.group_id || !data.sender || !data.content) return;
+        const timestamp = new Date().toISOString();
+        
+        let content = data.content;
+        if (data.type !== 'text' && data.type !== 'call' && content.startsWith('data:')) {
+            content = saveBase64File(content, 'uploads', 'group_' + data.sender);
+        }
+        
+        db.run(`INSERT INTO group_messages (group_id, sender, content, type, time, caption, reply_to) VALUES (?, ?, ?, ?, ?, ?, ?)`,
+            [data.group_id, data.sender, content, data.type || 'text', timestamp, data.caption || '', data.reply_to || null],
+            function(err) {
+                if (err) return console.error('Insert Group Msg Error:', err);
+                
+                const msgId = this.lastID;
+                db.get(`SELECT * FROM group_messages WHERE id = ?`, [msgId], (e, row) => {
+                    if (row) {
+                        // Enviar para todos os membros do grupo que estão online
+                        db.all(`SELECT username FROM group_members WHERE group_id = ?`, [data.group_id], (err, members) => {
+                            if (members) {
+                                members.forEach(m => {
+                                    if (onlineUsers.has(m.username)) {
+                                        onlineUsers.get(m.username).forEach(sid => {
+                                            io.to(sid).emit('new_group_msg', row);
+                                        });
+                                    }
+                                });
+                            }
+                        });
+                    }
+                });
+            }
+        );
+    });
+    
+    socket.on('delete_group_msg', (data) => {
+        const { id, group_id, username } = data;
+        db.get(`SELECT * FROM group_messages WHERE id = ?`, [id], (err, row) => {
+            if (row && row.group_id === group_id) {
+                // Verificar se é o autor ou admin
+                db.get(`SELECT role FROM group_members WHERE group_id = ? AND username = ?`, [group_id, username], (err, member) => {
+                    if (member && (row.sender === username || member.role === 'admin')) {
+                        db.run(`DELETE FROM group_messages WHERE id = ?`, [id], (err) => {
+                            if (!err) {
+                                // Notificar todos os membros
+                                db.all(`SELECT username FROM group_members WHERE group_id = ?`, [group_id], (err, members) => {
+                                    if (members) {
+                                        members.forEach(m => {
+                                            if (onlineUsers.has(m.username)) {
+                                                onlineUsers.get(m.username).forEach(sid => {
+                                                    io.to(sid).emit('group_msg_deleted', { id, group_id });
+                                                });
+                                            }
+                                        });
+                                    }
+                                });
+                            }
+                        });
+                    }
+                });
+            }
+        });
+    });
+    
+    socket.on('react_group_msg', (data) => {
+        const { id, reaction, group_id } = data;
+        db.run(`UPDATE group_messages SET reaction = ? WHERE id = ?`, [reaction, id], (err) => {
+            if (!err) {
+                db.all(`SELECT username FROM group_members WHERE group_id = ?`, [group_id], (err, members) => {
+                    if (members) {
+                        members.forEach(m => {
+                            if (onlineUsers.has(m.username)) {
+                                onlineUsers.get(m.username).forEach(sid => {
+                                    io.to(sid).emit('group_msg_reacted', { id, reaction, group_id });
+                                });
+                            }
+                        });
+                    }
+                });
+            }
+        });
+    });
+    
+    socket.on('pin_group_msg', (data) => {
+        const { id, group_id, username } = data;
+        // Verificar se é admin
+        db.get(`SELECT role FROM group_members WHERE group_id = ? AND username = ?`, [group_id, username], (err, member) => {
+            if (member && member.role === 'admin') {
+                db.run(`UPDATE group_messages SET pinned = 1 WHERE id = ?`, [id], (err) => {
+                    if (!err) {
+                        db.all(`SELECT username FROM group_members WHERE group_id = ?`, [group_id], (err, members) => {
+                            if (members) {
+                                members.forEach(m => {
+                                    if (onlineUsers.has(m.username)) {
+                                        onlineUsers.get(m.username).forEach(sid => {
+                                            io.to(sid).emit('group_msg_pinned', { id, group_id });
+                                        });
+                                    }
+                                });
+                            }
+                        });
+                    }
+                });
+            }
+        });
+    });
+
     socket.on('disconnect', () => { 
         if(socket.username) {
             const un = socket.username;
@@ -382,6 +528,172 @@ app.post('/stories', (req, res) => {
             res.json({ ok: true });
         }
     );
+});
+
+// --- GROUPS ENDPOINTS ---
+app.post('/groups/create', (req, res) => {
+    const { name, description, created_by, members } = req.body;
+    if (!name || !created_by) return res.status(400).json({ error: 'Nome e criador obrigatórios' });
+    
+    const groupId = 'g_' + Date.now() + '_' + Math.random().toString(36).substr(2, 9);
+    const createdAt = new Date().toISOString();
+    
+    db.run(`INSERT INTO groups (group_id, name, description, created_by, created_at) VALUES (?, ?, ?, ?, ?)`,
+        [groupId, name, description || '', created_by, createdAt],
+        function(err) {
+            if (err) return res.status(500).json({ error: err.message });
+            
+            // Adicionar criador como admin
+            db.run(`INSERT INTO group_members (group_id, username, role, joined_at) VALUES (?, ?, 'admin', ?)`,
+                [groupId, created_by, createdAt], (err) => {
+                    if (err) console.error('Erro ao adicionar criador:', err);
+                });
+            
+            // Adicionar outros membros se fornecidos
+            if (members && Array.isArray(members)) {
+                members.forEach(username => {
+                    if (username !== created_by) {
+                        db.run(`INSERT INTO group_members (group_id, username, role, joined_at) VALUES (?, ?, 'member', ?)`,
+                            [groupId, username, createdAt], (err) => {
+                                if (err) console.error('Erro ao adicionar membro:', err);
+                            });
+                    }
+                });
+            }
+            
+            io.emit('new_group', { group_id: groupId, name, created_by });
+            res.json({ ok: true, group_id: groupId });
+        }
+    );
+});
+
+app.get('/groups/my/:username', (req, res) => {
+    const username = req.params.username.toLowerCase().trim();
+    db.all(`
+        SELECT g.*, gm.role, gm.muted
+        FROM groups g
+        INNER JOIN group_members gm ON g.group_id = gm.group_id
+        WHERE gm.username = ?
+        ORDER BY g.created_at DESC
+    `, [username], (err, rows) => {
+        if (err) return res.status(500).json([]);
+        res.json(rows || []);
+    });
+});
+
+app.get('/groups/:group_id', (req, res) => {
+    const groupId = req.params.group_id;
+    db.get(`SELECT * FROM groups WHERE group_id = ?`, [groupId], (err, group) => {
+        if (err || !group) return res.status(404).json({ error: 'Grupo não encontrado' });
+        
+        db.all(`SELECT username, role, joined_at, muted FROM group_members WHERE group_id = ?`, [groupId], (err, members) => {
+            if (err) return res.status(500).json({ error: err.message });
+            
+            const users = getUsers();
+            const membersWithData = members.map(m => {
+                const u = users.find(u => u.username === m.username);
+                return {
+                    ...m,
+                    display_name: u?.display_name || m.username,
+                    avatar: u?.avatar || '',
+                    is_online: u?.is_online || false
+                };
+            });
+            
+            res.json({ ...group, members: membersWithData });
+        });
+    });
+});
+
+app.post('/groups/:group_id/members/add', (req, res) => {
+    const { group_id } = req.params;
+    const { username, added_by } = req.body;
+    
+    // Verificar se quem está adicionando é admin
+    db.get(`SELECT role FROM group_members WHERE group_id = ? AND username = ?`, [group_id, added_by], (err, member) => {
+        if (err || !member || member.role !== 'admin') {
+            return res.status(403).json({ error: 'Apenas admins podem adicionar membros' });
+        }
+        
+        const joinedAt = new Date().toISOString();
+        db.run(`INSERT INTO group_members (group_id, username, role, joined_at) VALUES (?, ?, 'member', ?)`,
+            [group_id, username, joinedAt],
+            function(err) {
+                if (err) return res.status(500).json({ error: err.message });
+                io.emit('group_member_added', { group_id, username });
+                res.json({ ok: true });
+            }
+        );
+    });
+});
+
+app.post('/groups/:group_id/members/remove', (req, res) => {
+    const { group_id } = req.params;
+    const { username, removed_by } = req.body;
+    
+    // Verificar se quem está removendo é admin
+    db.get(`SELECT role FROM group_members WHERE group_id = ? AND username = ?`, [group_id, removed_by], (err, member) => {
+        if (err || !member || member.role !== 'admin') {
+            return res.status(403).json({ error: 'Apenas admins podem remover membros' });
+        }
+        
+        db.run(`DELETE FROM group_members WHERE group_id = ? AND username = ?`, [group_id, username], function(err) {
+            if (err) return res.status(500).json({ error: err.message });
+            io.emit('group_member_removed', { group_id, username });
+            res.json({ ok: true });
+        });
+    });
+});
+
+app.post('/groups/:group_id/leave', (req, res) => {
+    const { group_id } = req.params;
+    const { username } = req.body;
+    
+    db.run(`DELETE FROM group_members WHERE group_id = ? AND username = ?`, [group_id, username], function(err) {
+        if (err) return res.status(500).json({ error: err.message });
+        io.emit('group_member_left', { group_id, username });
+        res.json({ ok: true });
+    });
+});
+
+app.get('/groups/:group_id/messages', (req, res) => {
+    const { group_id } = req.params;
+    db.all(`SELECT * FROM group_messages WHERE group_id = ? ORDER BY time ASC`, [group_id], (err, rows) => {
+        if (err) return res.status(500).json([]);
+        res.json(rows || []);
+    });
+});
+
+app.post('/groups/:group_id/update', (req, res) => {
+    const { group_id } = req.params;
+    const { name, description, avatar, updated_by } = req.body;
+    
+    // Verificar se quem está atualizando é admin
+    db.get(`SELECT role FROM group_members WHERE group_id = ? AND username = ?`, [group_id, updated_by], (err, member) => {
+        if (err || !member || member.role !== 'admin') {
+            return res.status(403).json({ error: 'Apenas admins podem atualizar o grupo' });
+        }
+        
+        let updates = [];
+        let values = [];
+        
+        if (name) { updates.push('name = ?'); values.push(name); }
+        if (description !== undefined) { updates.push('description = ?'); values.push(description); }
+        if (avatar && avatar.startsWith('data:')) {
+            const savedAvatar = saveBase64File(avatar, 'avatars', 'group_' + group_id);
+            updates.push('avatar = ?');
+            values.push(savedAvatar);
+        }
+        
+        if (updates.length === 0) return res.status(400).json({ error: 'Nenhuma atualização fornecida' });
+        
+        values.push(group_id);
+        db.run(`UPDATE groups SET ${updates.join(', ')} WHERE group_id = ?`, values, function(err) {
+            if (err) return res.status(500).json({ error: err.message });
+            io.emit('group_updated', { group_id });
+            res.json({ ok: true });
+        });
+    });
 });
 
 // --- HELPER: FILE SAVE ---
