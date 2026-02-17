@@ -126,7 +126,10 @@
     <!-- Main App -->
     <div id="main-app" class="hidden flex flex-col h-full">
         <header class="safe-pt bg-[#161616]/80 bg-blur border-b border-white/5 flex items-center justify-between px-5 py-3 shrink-0">
-            <button class="text-[#FF3B30] font-semibold text-lg">Editar</button>
+            <button onclick="showFriendRequests()" class="text-[#FF3B30] font-semibold text-lg relative">
+                Pedidos
+                <span id="friend-requests-badge" class="hidden absolute -top-1 -right-1 bg-[#FF3B30] text-white text-[9px] font-black px-1.5 py-0.5 rounded-full"></span>
+            </button>
             <h1 class="font-bold text-xl">Conversas</h1>
             <button onclick="document.getElementById('new-group-modal').classList.remove('hidden')" class="text-[#FF3B30] mr-2" title="Criar Grupo">
                 <svg class="w-7 h-7" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="2"><path d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z"/></svg>
@@ -241,12 +244,20 @@
     </div>
 
     <!-- Story Viewer -->
-    <div id="story-viewer" class="story-viewer" onclick="closeStory()">
+    <div id="story-viewer" class="story-viewer">
         <div class="story-progress" id="story-progress"></div>
-        <div class="flex-1 flex items-center justify-center relative">
+        <div class="flex-1 flex items-center justify-center relative" onclick="closeStory()">
             <img id="story-img" class="max-w-full max-h-full object-contain">
             <div id="story-text-container" class="absolute inset-0 flex items-center justify-center p-10 text-center text-3xl font-bold"></div>
             <div id="story-caption-display" class="absolute bottom-10 left-0 right-0 p-6 text-center bg-black/40 backdrop-blur-md text-white font-bold hidden"></div>
+        </div>
+        <div class="absolute bottom-10 left-0 right-0 flex justify-center gap-6 px-6">
+            <button onclick="event.stopPropagation(); likeStory()" class="bg-[#FF3B30] text-white p-4 rounded-full shadow-xl active:scale-90 transition-all">
+                <svg class="w-6 h-6" fill="currentColor" viewBox="0 0 20 20"><path d="M3.172 5.172a4 4 0 015.656 0L10 6.343l1.172-1.171a4 4 0 115.656 5.656L10 17.657l-6.828-6.829a4 4 0 010-5.656z"/></svg>
+            </button>
+            <button onclick="event.stopPropagation(); replyToStory()" class="bg-[#1C1C1E] text-white p-4 rounded-full shadow-xl active:scale-90 transition-all border border-white/10">
+                <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="2"><path d="M3 10h10a8 8 0 018 8v2M3 10l6 6m-6-6l6-6"/></svg>
+            </button>
         </div>
     </div>
 
@@ -407,6 +418,19 @@
         </div>
     </div>
 
+    <!-- Modal Pedidos de Amizade -->
+    <div id="friend-requests-modal" class="fixed inset-0 z-[1100] hidden bg-black/95 backdrop-blur flex flex-col">
+        <header class="safe-pt flex items-center justify-between px-5 py-4 border-b border-white/5">
+            <button onclick="document.getElementById('friend-requests-modal').classList.add('hidden')" class="text-[#FF3B30] font-bold">Fechar</button>
+            <h3 class="font-black text-xl">Pedidos de Amizade</h3>
+            <div class="w-10"></div>
+        </header>
+        <div class="flex-1 overflow-y-auto p-6">
+            <div id="friend-requests-list" class="space-y-4"></div>
+            <div id="no-requests-msg" class="hidden p-10 text-center text-gray-500">Nenhum pedido de amizade</div>
+        </div>
+    </div>
+
     <input type="file" id="avatar_file" hidden accept="image/*" onchange="upload('avatar', event)">
     <input type="file" id="group_avatar_file" hidden accept="image/*" onchange="uploadGroupAvatar(event)">
     <input type="file" id="media_input" hidden accept="image/*,video/*,audio/*" onchange="sendMedia(event)">
@@ -449,7 +473,7 @@
             document.getElementById('main-app').classList.remove('hidden');
             socket.emit('join', me.username);
             initPeer();
-            updateUI(); loadChats(); loadStories();
+            updateUI(); loadChats(); loadStories(); loadFriendRequests();
         }
 
         // --- PEERJS & CALLS ---
@@ -515,16 +539,53 @@
 
         // --- STORIES ---
         async function loadStories() {
-            const stories = await fetch('/stories').then(r => r.json());
+            const storiesGrouped = await fetch('/stories?viewer=' + me.username).then(r => r.json());
             const list = document.getElementById('stories-list');
-            list.innerHTML = stories.map(s => `
-                <div class="flex flex-col items-center gap-1" onclick="viewStory(${JSON.stringify(s).replace(/"/g, '&quot;')})">
-                    <div class="story-circle">
-                        <img src="${s.avatar || 'https://ui-avatars.com/api/?name='+s.username}">
+            
+            list.innerHTML = storiesGrouped.map(userStories => {
+                const hasUnviewed = userStories.stories.some(s => !s.viewers.includes(me.username));
+                const borderColor = hasUnviewed ? '#FF3B30' : '#555';
+                
+                return `
+                    <div class="flex flex-col items-center gap-1" onclick="viewUserStories(${JSON.stringify(userStories).replace(/"/g, '&quot;')})">
+                        <div class="story-circle" style="border-color: ${borderColor};">
+                            <img src="${userStories.avatar || 'https://ui-avatars.com/api/?name='+userStories.username}">
+                        </div>
+                        <span class="text-[10px] font-bold truncate max-w-[64px]">${userStories.display_name}</span>
                     </div>
-                    <span class="text-[10px] font-bold">${s.display_name}</span>
-                </div>
-            `).join('');
+                `;
+            }).join('');
+        }
+        
+        let currentUserStories = null;
+        let currentStoryIndex = 0;
+        
+        function viewUserStories(userStories) {
+            currentUserStories = userStories;
+            currentStoryIndex = 0;
+            showCurrentStory();
+        }
+        
+        function showCurrentStory() {
+            if (!currentUserStories || currentStoryIndex >= currentUserStories.stories.length) {
+                closeStory();
+                return;
+            }
+            
+            const story = currentUserStories.stories[currentStoryIndex];
+            viewStory(story);
+        }
+        
+        function nextStory() {
+            currentStoryIndex++;
+            showCurrentStory();
+        }
+        
+        function previousStory() {
+            if (currentStoryIndex > 0) {
+                currentStoryIndex--;
+                showCurrentStory();
+            }
         }
 
         let currentStoryFile = null;
@@ -597,13 +658,25 @@
         }
 
         let storyTimer;
+        let currentStory = null;
+        
         function viewStory(s) {
+            currentStory = s;
             const viewer = document.getElementById('story-viewer');
             const img = document.getElementById('story-img');
             const text = document.getElementById('story-text-container');
             const caption = document.getElementById('story-caption-display');
             
             viewer.style.display = 'flex';
+            
+            // Registrar visualização
+            if (s.username !== me.username && !s.viewers.includes(me.username)) {
+                fetch(`/stories/${s.id}/view`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ username: me.username })
+                });
+            }
             
             if (s.type === 'image') {
                 img.src = s.content; 
@@ -630,8 +703,35 @@
             setTimeout(() => fill.style.width = '100%', 50);
             
             storyTimer = setTimeout(() => {
-                viewer.style.display = 'none';
+                nextStory();
             }, 5000);
+        }
+        
+        async function likeStory() {
+            if (!currentStory) return;
+            const res = await fetch(`/stories/${currentStory.id}/like`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ username: me.username })
+            });
+            if (res.ok) {
+                const data = await res.json();
+                alert(data.liked ? 'Curtido!' : 'Descurtido!');
+            }
+        }
+        
+        function replyToStory() {
+            if (!currentStory) return;
+            const message = prompt('Responder ao status:');
+            if (message && message.trim()) {
+                fetch(`/stories/${currentStory.id}/reply`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ username: me.username, message: message.trim() })
+                }).then(() => {
+                    alert('Resposta enviada!');
+                });
+            }
         }
 
         function closeStory() {
@@ -1399,7 +1499,20 @@
         }
 
         async function promoteMember(username) {
-            // Implementar se necessário, por enquanto apenas admin pode fazer tudo
+            if (!confirm(`Promover @${username} a administrador?`)) return;
+            const res = await fetch(`/groups/${activeGroup}/promote`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ username, promoted_by: me.username })
+            });
+            if (res.ok) {
+                const groupData = await fetch(`/groups/${activeGroup}`).then(r => r.json());
+                currentGroupData = groupData;
+                viewGroupInfo();
+            } else {
+                const data = await res.json();
+                alert(data.error || 'Erro ao promover membro');
+            }
         }
 
         async function removeMember(username) {
@@ -1478,6 +1591,11 @@
                     <div class="flex items-center gap-2">
                         ${m.role === 'admin' ? '<span class="text-[10px] font-black text-[#FF3B30] border border-[#FF3B30] px-1 rounded">ADMIN</span>' : ''}
                         ${isAdmin && m.username !== me.username ? `
+                            ${m.role !== 'admin' ? `
+                                <button onclick="promoteMember('${m.username}')" class="text-[#FF3B30] p-1" title="Promover a Admin">
+                                    <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path d="M5 10l7-7m0 0l7 7m-7-7v18"/></svg>
+                                </button>
+                            ` : ''}
                             <button onclick="removeMember('${m.username}')" class="text-red-500 p-1">
                                 <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"/></svg>
                             </button>
@@ -1572,6 +1690,122 @@
             }
             loadChats();
         });
+        
+        // --- FRIENDSHIP SYSTEM ---
+        async function loadFriendRequests() {
+            const requests = await fetch(`/friends/requests/${me.username}`).then(r => r.json());
+            const badge = document.getElementById('friend-requests-badge');
+            
+            if (requests.length > 0) {
+                badge.innerText = requests.length;
+                badge.classList.remove('hidden');
+            } else {
+                badge.classList.add('hidden');
+            }
+        }
+        
+        async function showFriendRequests() {
+            const requests = await fetch(`/friends/requests/${me.username}`).then(r => r.json());
+            const list = document.getElementById('friend-requests-list');
+            const noMsg = document.getElementById('no-requests-msg');
+            
+            if (requests.length === 0) {
+                list.innerHTML = '';
+                noMsg.classList.remove('hidden');
+            } else {
+                noMsg.classList.add('hidden');
+                list.innerHTML = requests.map(req => `
+                    <div class="bg-[#1C1C1E] rounded-3xl p-5 border border-white/5 flex items-center gap-4">
+                        <img src="${req.avatar || 'https://ui-avatars.com/api/?name='+req.username}" class="w-14 h-14 rounded-full object-cover border border-white/10">
+                        <div class="flex-1">
+                            <h4 class="font-black text-lg">${req.display_name}</h4>
+                            <p class="text-sm text-gray-500">@${req.username}</p>
+                        </div>
+                        <div class="flex flex-col gap-2">
+                            <button onclick="acceptFriendRequest(${req.id})" class="bg-[#FF3B30] text-white px-4 py-2 rounded-xl font-bold text-sm active:scale-95 transition-all">Aceitar</button>
+                            <button onclick="rejectFriendRequest(${req.id})" class="bg-[#1C1C1E] text-gray-400 px-4 py-2 rounded-xl font-bold text-sm border border-white/10 active:scale-95 transition-all">Recusar</button>
+                        </div>
+                    </div>
+                `).join('');
+            }
+            
+            document.getElementById('friend-requests-modal').classList.remove('hidden');
+        }
+        
+        async function acceptFriendRequest(requestId) {
+            const res = await fetch('/friends/accept', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ request_id: requestId, username: me.username })
+            });
+            
+            if (res.ok) {
+                loadFriendRequests();
+                showFriendRequests();
+            }
+        }
+        
+        async function rejectFriendRequest(requestId) {
+            const res = await fetch('/friends/reject', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ request_id: requestId, username: me.username })
+            });
+            
+            if (res.ok) {
+                loadFriendRequests();
+                showFriendRequests();
+            }
+        }
+        
+        async function sendFriendRequest(username) {
+            const res = await fetch('/friends/request', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ requester: me.username, recipient: username })
+            });
+            
+            const data = await res.json();
+            if (res.ok) {
+                alert('Pedido de amizade enviado!');
+            } else {
+                alert(data.error || 'Erro ao enviar pedido');
+            }
+        }
+        
+        // Socket events para amizade
+        socket.on('friend_request', data => {
+            loadFriendRequests();
+        });
+        
+        socket.on('friend_accepted', data => {
+            loadChats();
+        });
+        
+        socket.on('friend_removed', data => {
+            loadChats();
+        });
+        
+        // Modificar startChat para verificar amizade antes de abrir conversa
+        async function startChat() {
+            const u = document.getElementById('new-chat-input').value.trim().toLowerCase();
+            if (!u) return;
+            
+            // Verificar se são amigos
+            const checkRes = await fetch(`/friends/check/${me.username}/${u}`).then(r => r.json());
+            
+            if (!checkRes.areFriends) {
+                const confirm = window.confirm(`Você não é amigo de @${u}. Deseja enviar um pedido de amizade?`);
+                if (confirm) {
+                    await sendFriendRequest(u);
+                }
+                document.getElementById('new-chat-modal').classList.add('hidden');
+                return;
+            }
+            
+            document.getElementById('new-chat-modal').classList.add('hidden');
+            openChat(u);
+        }
     </script>
 </body>
 </html>
