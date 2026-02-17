@@ -114,6 +114,17 @@ db.serialize(() => {
         UNIQUE(requester, recipient)
     )`);
     db.run("CREATE INDEX IF NOT EXISTS idx_friendships ON friendships(requester, recipient, status)");
+    
+    // Tabela para chats arquivados e fixados
+    db.run(`CREATE TABLE IF NOT EXISTS chat_settings (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        username TEXT NOT NULL,
+        contact_id TEXT NOT NULL,
+        is_archived INTEGER DEFAULT 0,
+        is_pinned INTEGER DEFAULT 0,
+        UNIQUE(username, contact_id)
+    )`);
+    db.run("CREATE INDEX IF NOT EXISTS idx_chat_settings ON chat_settings(username, contact_id)");
 });
 
 // --- USER MANAGEMENT CORE ---
@@ -533,11 +544,13 @@ app.get('/chats/:me', (req, res) => {
     const me = req.params.me.toLowerCase().trim();
     db.all(`
         SELECT m.*, 
-        CASE WHEN s = ? THEN r ELSE s END as contact
+        CASE WHEN s = ? THEN r ELSE s END as contact,
+        cs.is_archived, cs.is_pinned
         FROM messages m
+        LEFT JOIN chat_settings cs ON cs.username = ? AND cs.contact_id = CASE WHEN s = ? THEN r ELSE s END
         WHERE s = ? OR r = ?
         ORDER BY time DESC
-    `, [me, me, me], (err, rows) => {
+    `, [me, me, me, me, me], (err, rows) => {
         if (err) return res.status(500).json([]);
         
         const chats = new Map();
@@ -565,6 +578,36 @@ app.get('/chats/:me', (req, res) => {
         
         res.json(Array.from(chats.values()));
     });
+});
+
+app.post('/chats/settings', (req, res) => {
+    const { username, contact_id, is_archived, is_pinned } = req.body;
+    const un = username.toLowerCase().trim();
+    const ci = contact_id.toLowerCase().trim();
+    
+    db.run(`INSERT INTO chat_settings (username, contact_id, is_archived, is_pinned) 
+            VALUES (?, ?, ?, ?)
+            ON CONFLICT(username, contact_id) DO UPDATE SET 
+            is_archived = COALESCE(?, is_archived),
+            is_pinned = COALESCE(?, is_pinned)`,
+            [un, ci, is_archived || 0, is_pinned || 0, is_archived, is_pinned],
+            function(err) {
+                if (err) return res.status(500).json({ error: err.message });
+                res.json({ ok: true });
+            });
+});
+
+app.post('/chats/delete', (req, res) => {
+    const { username, contact_id } = req.body;
+    const un = username.toLowerCase().trim();
+    const ci = contact_id.toLowerCase().trim();
+    
+    db.run(`DELETE FROM messages WHERE (s = ? AND r = ?) OR (s = ? AND r = ?)`,
+            [un, ci, ci, un],
+            function(err) {
+                if (err) return res.status(500).json({ error: err.message });
+                res.json({ ok: true });
+            });
 });
 
 app.get('/messages/:u1/:u2', (req, res) => {
