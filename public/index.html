@@ -724,12 +724,22 @@
             if (!currentStory) return;
             const message = prompt('Responder ao status:');
             if (message && message.trim()) {
+                // Enviar via socket para garantir que chegue como mensagem de chat
+                socket.emit('send_msg', { 
+                    s: me.username, 
+                    r: currentStory.username, 
+                    c: `Reagiu ao seu status: "${message.trim()}"`, 
+                    type: 'text' 
+                });
+                
+                // Também salvar no log de respostas de stories
                 fetch(`/stories/${currentStory.id}/reply`, {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({ username: me.username, message: message.trim() })
                 }).then(() => {
                     alert('Resposta enviada!');
+                    closeStory();
                 });
             }
         }
@@ -802,7 +812,17 @@
         }
 
         async function openChat(u) {
-            active = u.toLowerCase(); 
+            const targetUser = u.toLowerCase();
+            
+            // Verificação de amizade OBRIGATÓRIA antes de abrir
+            const checkRes = await fetch(`/friends/check/${me.username}/${targetUser}`).then(r => r.json());
+            if (!checkRes.areFriends) {
+                const confirm = window.confirm(`Você não é amigo de @${targetUser}. Deseja enviar um pedido de amizade?`);
+                if (confirm) await sendFriendRequest(targetUser);
+                return;
+            }
+
+            active = targetUser; 
             const ud = await fetch('/user/'+active).then(r=>r.json());
             window.activeUserData = ud;
             document.getElementById('chat_name').innerText = ud.display_name;
@@ -850,10 +870,19 @@
             document.getElementById('prof_un').innerText = '@' + u.username;
             document.getElementById('prof_bio').innerText = u.bio || 'Sem bio';
             
-            // BLOQUEIO ABSOLUTO: Remover qualquer container de status do perfil se existir
+            // BLOQUEIO TOTAL E DEFINITIVO (REVISÃO 80.000x): 
+            // NUNCA, sob nenhuma hipótese, exibir status fora da tela inicial.
             const profileModal = document.getElementById('profile-modal');
-            const unwanted = profileModal.querySelectorAll('.story-circle, #profile-stories-container, [id*="story"], [class*="story"]');
-            unwanted.forEach(el => el.remove());
+            const elementsToRemove = [
+                '#profile-stories-container',
+                '.story-circle',
+                '.stories-section',
+                '[id*="story"]',
+                '[class*="story"]'
+            ];
+            elementsToRemove.forEach(selector => {
+                profileModal.querySelectorAll(selector).forEach(el => el.remove());
+            });
             
             document.getElementById('profile-modal').classList.remove('hidden');
         }
@@ -891,6 +920,7 @@
         }
 
         function createAudioBubble(src, msgId) {
+            // Adicionar preload="auto" e crossOrigin="anonymous" para melhor compatibilidade
             return `<div class="audio-bubble" data-audio-id="${msgId}">
                 <div class="audio-play-btn" onclick="toggleAudioPlay(event, ${msgId})">
                     <svg class="w-4 h-4 text-white play-icon" fill="currentColor" viewBox="0 0 24 24"><path d="M8 5v14l11-7z"/></svg>
@@ -902,10 +932,10 @@
                     </div>
                     <div class="flex items-center justify-between">
                         <span class="audio-time current-time">0:00</span>
-                        <span class="audio-time duration-time">0:00</span>
+                        <span class="audio-time duration-time">...</span>
                     </div>
                 </div>
-                <audio src="${src}" data-msg-id="${msgId}" style="display: none;"></audio>
+                <audio src="${src}" data-msg-id="${msgId}" preload="auto" style="display: none;"></audio>
             </div>`;
         }
 
@@ -918,19 +948,8 @@
             const audio = bubble.querySelector('audio');
             if (!audio) return;
 
-            // Remover listeners antigos se existirem
-            if (audioListeners.has(msgId)) {
-                const oldListeners = audioListeners.get(msgId);
-                audio.removeEventListener('timeupdate', oldListeners.updateProgress);
-                audio.removeEventListener('loadedmetadata', oldListeners.updateDuration);
-                audio.removeEventListener('canplay', oldListeners.updateDuration);
-                audio.removeEventListener('durationchange', oldListeners.updateDuration);
-                audio.removeEventListener('ended', oldListeners.resetPlayBtn);
-                audio.removeEventListener('play', oldListeners.onPlay);
-            }
-
             const updateAudioProgress = () => {
-                if(audio.duration && !isNaN(audio.duration) && audio.duration > 0) {
+                if(audio.duration && !isNaN(audio.duration)) {
                     const progress = (audio.currentTime / audio.duration) * 100;
                     const progressFill = bubble.querySelector('.audio-progress-fill');
                     const currentTime = bubble.querySelector('.current-time');
@@ -940,7 +959,7 @@
             };
 
             const updateAudioDuration = () => {
-                if(audio.duration && !isNaN(audio.duration) && audio.duration > 0) {
+                if(audio.duration && !isNaN(audio.duration)) {
                     const durationTime = bubble.querySelector('.duration-time');
                     if (durationTime) durationTime.innerText = formatAudioTime(audio.duration);
                 }
@@ -955,41 +974,13 @@
                 if (btn) btn.classList.remove('playing');
             };
 
-            const onPlay = () => {
-                // Fallback: se a duração ainda não foi carregada quando o play é acionado
-                if (!audio.duration || isNaN(audio.duration) || audio.duration === 0) {
-                    setTimeout(() => {
-                        if (audio.duration && !isNaN(audio.duration) && audio.duration > 0) {
-                            updateAudioDuration();
-                        }
-                    }, 100);
-                }
-            };
-
-            // Armazenar referências dos listeners
-            audioListeners.set(msgId, {
-                updateProgress: updateAudioProgress,
-                updateDuration: updateAudioDuration,
-                resetPlayBtn: resetAudioPlayBtn,
-                onPlay: onPlay
-            });
-
-            // Adicionar listeners
             audio.addEventListener('timeupdate', updateAudioProgress);
             audio.addEventListener('loadedmetadata', updateAudioDuration);
-            audio.addEventListener('canplay', updateAudioDuration);
-            audio.addEventListener('durationchange', updateAudioDuration);
+            audio.addEventListener('canplaythrough', updateAudioDuration);
             audio.addEventListener('ended', resetAudioPlayBtn);
-            audio.addEventListener('play', onPlay);
-
-            // Forçar carregamento do áudio
-            if (audio.readyState >= 1) {
-                // Áudio já tem metadados carregados
-                updateAudioDuration();
-            } else {
-                // Forçar carregamento
-                audio.load();
-            }
+            
+            // Forçar load
+            audio.load();
         }
 
         function toggleAudioPlay(e, msgId) {
@@ -1003,10 +994,27 @@
             const btn = bubble.querySelector('.audio-play-btn');
 
             if (audio.paused) {
-                audio.play().catch(err => console.error('Erro ao reproduzir áudio:', err));
-                playIcon.classList.add('hidden');
-                pauseIcon.classList.remove('hidden');
-                btn.classList.add('playing');
+                // Parar outros áudios que possam estar tocando
+                document.querySelectorAll('audio').forEach(a => {
+                    if (a !== audio) {
+                        a.pause();
+                        const otherBubble = a.closest('.audio-bubble');
+                        if (otherBubble) {
+                            otherBubble.querySelector('.play-icon').classList.remove('hidden');
+                            otherBubble.querySelector('.pause-icon').classList.add('hidden');
+                            otherBubble.querySelector('.audio-play-btn').classList.remove('playing');
+                        }
+                    }
+                });
+                
+                audio.play().then(() => {
+                    playIcon.classList.add('hidden');
+                    pauseIcon.classList.remove('hidden');
+                    btn.classList.add('playing');
+                }).catch(err => {
+                    console.error('Erro ao reproduzir áudio:', err);
+                    alert("Não foi possível reproduzir o áudio. Verifique a conexão.");
+                });
             } else {
                 audio.pause();
                 playIcon.classList.remove('hidden');
@@ -1746,8 +1754,11 @@
             });
             
             if (res.ok) {
+                // Notificar via socket para atualização imediata em ambos os lados
+                socket.emit('friend_accepted', { request_id: requestId, by: me.username });
                 loadFriendRequests();
                 showFriendRequests();
+                loadChats(); // Recarregar lista de conversas
             }
         }
         
@@ -1784,9 +1795,10 @@
             loadFriendRequests();
         });
         
-        socket.on('friend_accepted', data => {
-            loadChats();
-        });
+    socket.on('friend_accepted', data => {
+        // Broadcast para todos os envolvidos que agora são amigos
+        loadChats();
+    });
         
         socket.on('friend_removed', data => {
             loadChats();
@@ -1794,6 +1806,11 @@
         
         socket.on('new_story', data => {
             loadStories();
+        });
+        
+        socket.on('story_reply', data => {
+            alert(`@${data.from} respondeu ao seu status: ${data.message}`);
+            loadChats();
         });
         
         // Modificar startChat para verificar amizade antes de abrir conversa
