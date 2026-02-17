@@ -213,11 +213,7 @@
         <nav class="safe-pb bg-[#161616]/80 bg-blur border-t border-white/5 flex justify-around py-2 shrink-0">
             <button onclick="switchTab('chats')" id="btn-chats" class="flex flex-col items-center gap-1 w-20 text-[#FF3B30]">
                 <svg class="w-7 h-7" fill="currentColor" viewBox="0 0 24 24"><path d="M20 2H4c-1.1 0-2 .9-2 2v18l4-4h14c1.1 0 2-.9 2-2V4c0-1.1-.9-2-2-2z"/></svg>
-                <span class="text-[10px] font-black uppercase">Chats</span>
-            </button>
-            <button onclick="switchTab('archived')" id="btn-archived" class="flex flex-col items-center gap-1 w-20 text-gray-600">
-                <svg class="w-7 h-7" fill="currentColor" viewBox="0 0 24 24"><path d="M5 4h14a2 2 0 012 2v12a2 2 0 01-2 2H5a2 2 0 01-2-2V6a2 2 0 012-2zm0 5h14M5 14h14"/></svg>
-                <span class="text-[10px] font-black uppercase">Arquivados</span>
+                <span class="text-[10px] font-black uppercase">Conversas</span>
             </button>
             <button onclick="switchTab('settings')" id="btn-settings" class="flex flex-col items-center gap-1 w-20 text-gray-600">
                 <svg class="w-7 h-7" fill="currentColor" viewBox="0 0 24 24"><path d="M12 12c2.21 0 4-1.79 4-4s-1.79-4-4-4-4 1.79-4 4 1.79 4 4 4zm0 2c-2.67 0-8 1.34-8 4v2h16v-2c0-2.66-5.33-4-8-4z"/></svg>
@@ -980,17 +976,17 @@
             const activeChats = allChats.filter(c => c.is_archived !== 1);
             const archivedChats = allChats.filter(c => c.is_archived === 1);
             
-            // Layout WhatsApp Style: Arquivados no topo se houver
+            // Layout WhatsApp Style: Arquivados no topo se houver (mais discreto)
             let html = '';
             if (archivedChats.length > 0) {
                 html += `
-                    <div onclick="switchTab('archived')" class="flex items-center gap-4 p-5 active:bg-white/5 transition-all cursor-pointer border-b border-white/5">
-                        <div class="w-16 h-16 flex items-center justify-center">
-                            <svg class="w-8 h-8 text-[#FF3B30]" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path d="M5 4h14a2 2 0 012 2v12a2 2 0 01-2 2H5a2 2 0 01-2-2V6a2 2 0 012-2zm0 5h14M5 14h14" stroke-width="2"/></svg>
+                    <div onclick="switchTab('archived')" class="flex items-center gap-4 px-5 py-3 active:bg-white/5 transition-all cursor-pointer border-b border-white/5">
+                        <div class="w-12 h-12 flex items-center justify-center">
+                            <svg class="w-6 h-6 text-[#FF3B30]" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path d="M5 4h14a2 2 0 012 2v12a2 2 0 01-2 2H5a2 2 0 01-2-2V6a2 2 0 012-2zm0 5h14M5 14h14" stroke-width="2"/></svg>
                         </div>
                         <div class="flex-1">
                             <div class="flex justify-between items-center">
-                                <h3 class="font-black text-lg text-white">Arquivados</h3>
+                                <h3 class="font-bold text-base text-white">Arquivadas</h3>
                                 <span class="text-[#FF3B30] text-xs font-black">${archivedChats.length}</span>
                             </div>
                         </div>
@@ -1001,13 +997,13 @@
             html += activeChats.length ? activeChats.map(renderChat).join('') : '<div class="p-10 text-center text-gray-500 font-bold">Nenhuma conversa ativa</div>';
             chatContainer.innerHTML = html;
             
-            // Na aba de arquivados, mostrar o botão de voltar para conversas
+            // Na aba de arquivados, mostrar o botão de voltar para conversas (estilo WhatsApp)
             let archivedHtml = `
-                <div onclick="switchTab('chats')" class="flex items-center gap-4 p-5 active:bg-white/5 transition-all cursor-pointer border-b border-white/5">
-                    <div class="w-10 h-10 flex items-center justify-center">
-                        <svg class="w-6 h-6 text-[#FF3B30]" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path d="M15 19l-7-7 7-7" stroke-width="2"/></svg>
+                <div onclick="switchTab('chats')" class="flex items-center gap-4 px-5 py-4 active:bg-white/5 transition-all cursor-pointer border-b border-white/5">
+                    <div class="w-6 h-6 flex items-center justify-center">
+                        <svg class="w-6 h-6 text-[#FF3B30]" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path d="M15 19l-7-7 7-7" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
                     </div>
-                    <h3 class="font-black text-lg text-white">Conversas Arquivadas</h3>
+                    <h3 class="font-bold text-lg text-white">Arquivadas</h3>
                 </div>
             `;
             archivedHtml += archivedChats.length ? archivedChats.map(renderChat).join('') : '<div class="p-10 text-center text-gray-500 font-bold">Nenhuma conversa arquivada</div>';
@@ -1041,10 +1037,13 @@
         }
 
         async function toggleChatSetting(contactId, setting, value) {
+            const body = { username: me.username, contact_id: contactId };
+            body[setting] = value ? 1 : 0;
+            
             await fetch('/chats/settings', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ username: me.username, contact_id: contactId, [setting]: value ? 1 : 0 })
+                body: JSON.stringify(body)
             });
             closeContextMenu();
             loadChats();
@@ -1664,6 +1663,7 @@
             if (activeBtn) activeBtn.classList.replace('text-gray-600', 'text-[#FF3B30]');
             
             const storiesContainer = document.getElementById('stories-container');
+            // No WhatsApp, os status aparecem apenas na aba de conversas principal
             if(t === 'chats') {
                 storiesContainer.classList.remove('hidden');
             } else {
