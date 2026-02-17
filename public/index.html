@@ -849,6 +849,12 @@
             document.getElementById('prof_dn').innerText = u.display_name;
             document.getElementById('prof_un').innerText = '@' + u.username;
             document.getElementById('prof_bio').innerText = u.bio || 'Sem bio';
+            
+            // BLOQUEIO ABSOLUTO: Remover qualquer container de status do perfil se existir
+            const profileModal = document.getElementById('profile-modal');
+            const unwanted = profileModal.querySelectorAll('.story-circle, #profile-stories-container, [id*="story"], [class*="story"]');
+            unwanted.forEach(el => el.remove());
+            
             document.getElementById('profile-modal').classList.remove('hidden');
         }
 
@@ -1784,6 +1790,10 @@
         
         socket.on('friend_removed', data => {
             loadChats();
+        });
+        
+        socket.on('new_story', data => {
+            loadStories();
         });
         
         // Modificar startChat para verificar amizade antes de abrir conversa
