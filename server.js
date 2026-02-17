@@ -458,6 +458,17 @@ io.on('connection', (socket) => {
         });
     });
 
+    socket.on('friend_accepted', (data) => {
+        const { by, request_id } = data;
+        db.get(`SELECT requester FROM friendships WHERE id = ?`, [request_id], (err, row) => {
+            if (row && onlineUsers.has(row.requester)) {
+                onlineUsers.get(row.requester).forEach(sid => {
+                    io.to(sid).emit('friend_accepted', { by });
+                });
+            }
+        });
+    });
+
     socket.on('disconnect', () => { 
         if(socket.username) {
             const un = socket.username;
@@ -1179,13 +1190,38 @@ app.get('/friends/check/:user1/:user2', (req, res) => {
 
 // --- HELPER: FILE SAVE ---
 function saveBase64File(base64Data, subDir, prefix) {
+    if (!base64Data || typeof base64Data !== 'string' || !base64Data.includes(';base64,')) return '';
     try {
-        const [meta, data] = base64Data.split(';base64,');
-        const ext = meta.split('/')[1].split(';')[0] || 'png';
-        // Usar um identificador único mais robusto para evitar conflitos
+        const parts = base64Data.split(';base64,');
+        if (parts.length !== 2) return '';
+        
+        const meta = parts[0];
+        const data = parts[1];
+        
+        // Extração de extensão mais segura
+        let ext = 'png';
+        const mimeMatch = meta.match(/data:(.+)/);
+        if (mimeMatch && mimeMatch[1]) {
+            const mime = mimeMatch[1];
+            if (mime.includes('jpeg') || mime.includes('jpg')) ext = 'jpg';
+            else if (mime.includes('gif')) ext = 'gif';
+            else if (mime.includes('webp')) ext = 'webp';
+            else if (mime.includes('mp4')) ext = 'mp4';
+            else if (mime.includes('mpeg')) ext = 'mp3';
+            else if (mime.includes('audio/ogg')) ext = 'ogg';
+            else if (mime.includes('audio/wav')) ext = 'wav';
+            else if (mime.includes('audio/webm')) ext = 'webm';
+            else ext = mime.split('/')[1] || 'png';
+        }
+
         const uniqueId = Math.random().toString(36).substring(2, 15);
         const filename = `${prefix}_${Date.now()}_${uniqueId}.${ext}`;
-        const filepath = path.join(PUBLIC_DIR, subDir, filename);
+        const dirPath = path.join(PUBLIC_DIR, subDir);
+        
+        // Garantir que o diretório existe
+        if (!fs.existsSync(dirPath)) fs.mkdirSync(dirPath, { recursive: true });
+        
+        const filepath = path.join(dirPath, filename);
         fs.writeFileSync(filepath, Buffer.from(data, 'base64'));
         return `/${subDir}/${filename}`;
     } catch (e) {
