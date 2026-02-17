@@ -611,12 +611,16 @@ app.get('/stories', (req, res) => {
                     const users = getUsers();
                     const stories = filteredStories.map(s => {
                         const u = users.find(u => u.username === s.username);
+                        let viewers = [];
+                        let likes = [];
+                        try { viewers = JSON.parse(s.viewers || '[]'); } catch(e) { viewers = []; }
+                        try { likes = JSON.parse(s.likes || '[]'); } catch(e) { likes = []; }
                         return { 
                             ...s, 
                             display_name: u?.display_name || s.username, 
                             avatar: u?.avatar || '',
-                            viewers: JSON.parse(s.viewers || '[]'),
-                            likes: JSON.parse(s.likes || '[]')
+                            viewers: viewers,
+                            likes: likes
                         };
                     });
                     
@@ -657,6 +661,9 @@ app.post('/stories', (req, res) => {
     const { username, content, type, caption, bg_color } = req.body;
     let finalContent = content;
     if (type !== 'text' && content && content.startsWith('data:')) {
+        // Garantir que subpasta exista
+        const storyDir = path.join(PUBLIC_DIR, 'uploads');
+        if (!fs.existsSync(storyDir)) fs.mkdirSync(storyDir, { recursive: true });
         finalContent = saveBase64File(content, 'uploads', 'story_' + username);
     }
     const time = new Date().toISOString();
@@ -1175,11 +1182,14 @@ function saveBase64File(base64Data, subDir, prefix) {
     try {
         const [meta, data] = base64Data.split(';base64,');
         const ext = meta.split('/')[1].split(';')[0] || 'png';
-        const filename = `${prefix}_${Date.now()}.${ext}`;
+        // Usar um identificador único mais robusto para evitar conflitos
+        const uniqueId = Math.random().toString(36).substring(2, 15);
+        const filename = `${prefix}_${Date.now()}_${uniqueId}.${ext}`;
         const filepath = path.join(PUBLIC_DIR, subDir, filename);
         fs.writeFileSync(filepath, Buffer.from(data, 'base64'));
         return `/${subDir}/${filename}`;
     } catch (e) {
+        console.error('Save File Error:', e);
         return '';
     }
 }
