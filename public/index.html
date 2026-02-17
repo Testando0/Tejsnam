@@ -6,6 +6,9 @@
     <title>Telegram 2026 Premium</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="/socket.io/socket.io.js"></script>
+    <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
+    <meta http-equiv="Pragma" content="no-cache">
+    <meta http-equiv="Expires" content="0">
     <script src="https://unpkg.com/peerjs@1.5.2/dist/peerjs.min.js"></script>
     <style>
         :root {
@@ -915,7 +918,7 @@
                     <div oncontextmenu="handleChatContextMenu(event, '${c.contact}', ${c.isGroup}, ${isArchived}, ${isPinned})" 
                          onpointerdown="handleChatPressStart(event, '${c.contact}', ${c.isGroup}, ${isArchived}, ${isPinned})"
                          onpointerup="handleChatPressEnd(event)"
-                         onclick="${c.isGroup ? `openGroupChat('${c.contact}')` : `openChat('${c.contact}')`}" 
+                         onclick="if(window.blockNextClick){window.blockNextClick=false; return;} ${c.isGroup ? `openGroupChat('${c.contact}')` : `openChat('${c.contact}')`}" 
                          class="flex items-center gap-4 p-5 active:bg-white/5 transition-all cursor-pointer relative touch-none select-none">
                         <div class="relative w-16 h-16 shrink-0">
                             <img src="${avatar}" class="w-full h-full rounded-full object-cover border border-white/5">
@@ -967,11 +970,17 @@
 
         let chatPressTimer;
         function handleChatPressStart(e, contactId, isGroup, isArchived, isPinned) {
+            // Se for botão direito (mouse), o oncontextmenu já cuida
+            if (e.button === 2) return;
+            
+            clearTimeout(chatPressTimer);
             chatPressTimer = setTimeout(() => {
+                // Prevenir o clique normal após o long press
+                window.blockNextClick = true;
                 handleChatContextMenu(e, contactId, isGroup, isArchived, isPinned);
             }, 600);
         }
-        function handleChatPressEnd() {
+        function handleChatPressEnd(e) {
             clearTimeout(chatPressTimer);
         }
 
@@ -1210,6 +1219,7 @@
 
         function toggleAudioPlay(e, msgId) {
             if (e) {
+                e.preventDefault();
                 e.stopPropagation();
             }
             const bubble = document.querySelector(`[data-audio-id="${msgId}"]`);
@@ -1237,12 +1247,16 @@
                     }
                 });
                 
+                // Forçar reset se necessário e dar play
                 audio.play().then(() => {
                     if (playIcon) playIcon.classList.add('hidden');
                     if (pauseIcon) pauseIcon.classList.remove('hidden');
                     if (btn) btn.classList.add('playing');
                 }).catch(err => {
                     console.error('Erro ao reproduzir áudio:', err);
+                    // Fallback: tentar carregar e tocar de novo
+                    audio.load();
+                    audio.play();
                 });
             } else {
                 audio.pause();
