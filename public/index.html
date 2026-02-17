@@ -76,9 +76,30 @@
         .audio-waveform-bar { width: 2px; height: 100%; background: rgba(255, 255, 255, 0.4); border-radius: 1px; }
         .audio-waveform-bar.active { background: #FF3B30; }
 
-        /* Prevent text selection on long press */
-        .msg-bubble { -webkit-user-select: none; -moz-user-select: none; -ms-user-select: none; user-select: none; }
-        .msg-bubble * { -webkit-user-select: none; -moz-user-select: none; -ms-user-select: none; user-select: none; }
+        /* Prevent text selection on long press - BLOQUEIO TOTAL */
+        .msg-bubble { 
+            -webkit-user-select: none; 
+            -moz-user-select: none; 
+            -ms-user-select: none; 
+            user-select: none; 
+            -webkit-touch-callout: none; /* iOS callout menu */
+            touch-action: manipulation; /* Prevenir gestos do navegador */
+            -webkit-tap-highlight-color: transparent; /* Remover highlight do tap */
+        }
+        .msg-bubble * { 
+            -webkit-user-select: none; 
+            -moz-user-select: none; 
+            -ms-user-select: none; 
+            user-select: none; 
+            -webkit-touch-callout: none;
+            pointer-events: none; /* Desabilitar eventos de ponteiro em elementos filhos */
+        }
+        /* Reabilitar eventos de ponteiro apenas em elementos interativos */
+        .msg-bubble .audio-play-btn,
+        .msg-bubble .audio-progress,
+        .msg-bubble img {
+            pointer-events: auto;
+        }
     </style>
 </head>
 <body>
@@ -107,7 +128,10 @@
         <header class="safe-pt bg-[#161616]/80 bg-blur border-b border-white/5 flex items-center justify-between px-5 py-3 shrink-0">
             <button class="text-[#FF3B30] font-semibold text-lg">Editar</button>
             <h1 class="font-bold text-xl">Conversas</h1>
-            <button onclick="document.getElementById('new-chat-modal').classList.remove('hidden')" class="text-[#FF3B30]">
+            <button onclick="document.getElementById('new-group-modal').classList.remove('hidden')" class="text-[#FF3B30] mr-2" title="Criar Grupo">
+                <svg class="w-7 h-7" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="2"><path d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z"/></svg>
+            </button>
+            <button onclick="document.getElementById('new-chat-modal').classList.remove('hidden')" class="text-[#FF3B30]" title="Nova Conversa">
                 <svg class="w-7 h-7" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="2"><path d="M12 4v16m8-8H4"/></svg>
             </button>
         </header>
@@ -167,7 +191,7 @@
     <div id="chat-room">
         <header class="safe-pt bg-[#161616]/95 bg-blur border-b border-white/5 flex items-center px-2 py-2 shrink-0">
             <button onclick="closeChat()" class="p-2 text-[#FF3B30]"><svg class="w-8 h-8" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="3"><path d="M15 19l-7-7 7-7"/></svg></button>
-            <div class="flex-1 flex items-center gap-3 cursor-pointer overflow-hidden" onclick="viewProfile()">
+            <div class="flex-1 flex items-center gap-3 cursor-pointer overflow-hidden" onclick="isGroupChat ? viewGroupInfo() : viewProfile()">
                 <img id="chat_avatar" class="w-11 h-11 rounded-full object-cover border border-white/10">
                 <div class="flex flex-col truncate">
                     <h3 id="chat_name" class="font-black text-lg truncate"></h3>
@@ -269,6 +293,45 @@
         </div>
     </div>
 
+    <!-- Modal de Criar Grupo -->
+    <div id="new-group-modal" class="fixed inset-0 z-[1000] hidden bg-black/90 backdrop-blur flex items-center justify-center p-6">
+        <div class="w-full max-w-sm bg-[#1C1C1E] rounded-[2.5rem] p-8 border border-white/5">
+            <h3 class="text-2xl font-black mb-6">Criar Grupo</h3>
+            <input id="group-name-input" placeholder="Nome do Grupo" class="w-full bg-black p-5 rounded-2xl text-white border border-white/10 mb-4">
+            <textarea id="group-desc-input" placeholder="Descrição (opcional)" class="w-full bg-black p-5 rounded-2xl text-white border border-white/10 mb-4 resize-none" rows="2"></textarea>
+            <div class="flex gap-4">
+                <button onclick="document.getElementById('new-group-modal').classList.add('hidden')" class="flex-1 py-4 text-gray-500 font-bold">Cancelar</button>
+                <button onclick="createGroup()" class="flex-1 py-4 premium-gradient text-white font-black rounded-2xl shadow-xl">Criar</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Modal de Info do Grupo -->
+    <div id="group-info-modal" class="fixed inset-0 z-[1100] hidden bg-black/95 backdrop-blur flex flex-col">
+        <header class="safe-pt flex items-center justify-between px-5 py-4 border-b border-white/5">
+            <button onclick="document.getElementById('group-info-modal').classList.add('hidden')" class="text-[#FF3B30] font-bold">Fechar</button>
+            <h3 class="font-black text-xl">Info do Grupo</h3>
+            <button onclick="showGroupSettings()" class="text-[#FF3B30] font-bold" id="group-settings-btn">Editar</button>
+        </header>
+        <div class="flex-1 overflow-y-auto p-6">
+            <div class="flex flex-col items-center mb-6">
+                <div class="relative w-32 h-32 mb-4">
+                    <img id="group-info-avatar" class="w-full h-full rounded-full object-cover border-4 border-[#FF3B30]/20 shadow-2xl">
+                </div>
+                <h2 id="group-info-name" class="text-3xl font-black mb-2"></h2>
+                <p id="group-info-desc" class="text-gray-400 text-center mb-4"></p>
+                <p id="group-info-members-count" class="text-sm text-gray-500"></p>
+            </div>
+            
+            <div class="bg-[#1C1C1E] rounded-3xl border border-white/5 p-4 mb-4">
+                <h4 class="text-xs font-black text-[#FF3B30] uppercase tracking-widest mb-3">Membros</h4>
+                <div id="group-members-list" class="space-y-2"></div>
+            </div>
+            
+            <button onclick="leaveGroup()" class="w-full py-4 bg-red-500/20 text-red-500 font-black rounded-2xl border border-red-500/30" id="leave-group-btn">Sair do Grupo</button>
+        </div>
+    </div>
+
     <input type="file" id="avatar_file" hidden accept="image/*" onchange="upload('avatar', event)">
     <input type="file" id="media_input" hidden accept="image/*,video/*,audio/*" onchange="sendMedia(event)">
     <input type="file" id="story_input" hidden accept="image/*,video/*" onchange="postStory(event)">
@@ -277,6 +340,7 @@
         const socket = io({ reconnection: true, reconnectionAttempts: Infinity });
         let me = null, active = null, selectedMsgId = null, longPressTimer = null;
         let peer, currentCall, localStream;
+        let activeGroup = null, currentGroupData = null, isGroupChat = false;
 
         function toggleAuth() {
             const isReg = document.getElementById('d_auth').classList.toggle('hidden');
@@ -429,26 +493,60 @@
         // --- CHATS & MESSAGES ---
         async function loadChats() {
             if (!me) return;
-            const d = await fetch('/chats/'+me.username).then(r=>r.json());
+            
+            // Carregar conversas individuais
+            const chats = await fetch('/chats/'+me.username).then(r=>r.json());
+            
+            // Carregar grupos
+            const groups = await fetch('/groups/my/'+me.username).then(r=>r.json()).catch(() => []);
+            
             const container = document.getElementById('tab-chats');
-            container.innerHTML = d.length ? d.map(c => `
-                <div onclick="openChat('${c.contact}')" class="flex items-center gap-4 p-5 active:bg-white/5 transition-all cursor-pointer">
-                    <div class="relative w-16 h-16 shrink-0">
-                        <img src="${c.avatar || 'https://ui-avatars.com/api/?background=1C1C1E&color=fff&name='+c.display_name}" class="w-full h-full rounded-full object-cover border border-white/5">
-                        ${c.is_online ? '<div class="absolute bottom-0.5 right-0.5 w-4 h-4 bg-green-500 rounded-full border-[3px] border-black"></div>' : ''}
-                    </div>
-                    <div class="flex-1 min-w-0">
-                        <div class="flex justify-between items-baseline">
-                            <h3 class="font-black text-lg text-white truncate">${c.display_name}</h3>
-                            <span class="text-xs font-bold text-gray-500">${formatTime(c.last_time)}</span>
+            let html = '';
+            
+            // Renderizar grupos primeiro
+            if (groups.length > 0) {
+                html += groups.map(g => `
+                    <div onclick="openGroupChat('${g.group_id}')" class="flex items-center gap-4 p-5 active:bg-white/5 transition-all cursor-pointer bg-[#1C1C1E]/30">
+                        <div class="relative w-16 h-16 shrink-0">
+                            <img src="${g.avatar || 'https://ui-avatars.com/api/?background=FF3B30&color=fff&name='+g.name}" class="w-full h-full rounded-full object-cover border-2 border-[#FF3B30]/30">
+                            <div class="absolute -bottom-1 -right-1 bg-[#FF3B30] rounded-full p-1">
+                                <svg class="w-3 h-3 text-white" fill="currentColor" viewBox="0 0 20 20"><path d="M13 6a3 3 0 11-6 0 3 3 0 016 0zM18 8a2 2 0 11-4 0 2 2 0 014 0zM14 15a4 4 0 00-8 0v3h8v-3zM6 8a2 2 0 11-4 0 2 2 0 014 0zM16 18v-3a5.972 5.972 0 00-.75-2.906A3.005 3.005 0 0119 15v3h-3zM4.75 12.094A5.973 5.973 0 004 15v3H1v-3a3 3 0 013.75-2.906z"/></svg>
+                            </div>
                         </div>
-                        <div class="flex justify-between items-center mt-1">
-                            <p class="text-[15px] text-gray-500 truncate font-medium">${c.type==='text'?c.last_msg:'[Mídia]'}</p>
-                            ${c.unread ? `<span class="bg-[#FF3B30] text-white text-[10px] font-black px-2 py-0.5 rounded-full">${c.unread}</span>` : ''}
+                        <div class="flex-1 min-w-0">
+                            <div class="flex justify-between items-baseline">
+                                <h3 class="font-black text-lg text-white truncate">${g.name}</h3>
+                                ${g.muted ? '<svg class="w-4 h-4 text-gray-500" fill="currentColor" viewBox="0 0 20 20"><path d="M3.707 2.293a1 1 0 00-1.414 1.414l14 14a1 1 0 001.414-1.414l-14-14zM9 4.414L6.707 6.707 9 9V4.414zM15.657 16.243L13 13.586V16a1 1 0 11-2 0v-4.586l-2-2V16a3 3 0 006 0v-.757z"/></svg>' : ''}
+                            </div>
+                            <p class="text-[13px] text-gray-500 truncate font-medium">${g.description || 'Grupo'}</p>
                         </div>
                     </div>
-                </div>
-            `).join('') : '<div class="p-10 text-center text-gray-500">Nenhuma conversa.</div>';
+                `).join('');
+            }
+            
+            // Renderizar conversas individuais
+            if (chats.length > 0) {
+                html += chats.map(c => `
+                    <div onclick="openChat('${c.contact}')" class="flex items-center gap-4 p-5 active:bg-white/5 transition-all cursor-pointer">
+                        <div class="relative w-16 h-16 shrink-0">
+                            <img src="${c.avatar || 'https://ui-avatars.com/api/?background=1C1C1E&color=fff&name='+c.display_name}" class="w-full h-full rounded-full object-cover border border-white/5">
+                            ${c.is_online ? '<div class="absolute bottom-0.5 right-0.5 w-4 h-4 bg-green-500 rounded-full border-[3px] border-black"></div>' : ''}
+                        </div>
+                        <div class="flex-1 min-w-0">
+                            <div class="flex justify-between items-baseline">
+                                <h3 class="font-black text-lg text-white truncate">${c.display_name}</h3>
+                                <span class="text-xs font-bold text-gray-500">${formatTime(c.last_time)}</span>
+                            </div>
+                            <div class="flex justify-between items-center mt-1">
+                                <p class="text-[15px] text-gray-500 truncate font-medium">${c.type==='text'?c.last_msg:'[Mídia]'}</p>
+                                ${c.unread ? `<span class="bg-[#FF3B30] text-white text-[10px] font-black px-2 py-0.5 rounded-full">${c.unread}</span>` : ''}
+                            </div>
+                        </div>
+                    </div>
+                `).join('');
+            }
+            
+            container.innerHTML = html || '<div class="p-10 text-center text-gray-500">Nenhuma conversa.</div>';
         }
 
         async function openChat(u) {
@@ -468,16 +566,28 @@
             msgContainer.scrollTop = msgContainer.scrollHeight;
             socket.emit('mark_read', { s: active, r: me.username });
             setTimeout(loadChats, 100);
+            
+            // Forçar atualização imediata do status após abrir o chat
+            setTimeout(refreshActiveUserStatus, 500);
         }
 
         function updateChatStatus(u) {
-            if (window.activeUserData && window.activeUserData.username === u.username) {
-                window.activeUserData.is_online = u.is_online;
-                window.activeUserData.last_seen = u.last_seen;
+            if (!u) return;
+            
+            // Atualizar activeUserData se for o usuário correto
+            if (window.activeUserData && (window.activeUserData.username === u.username || !u.username)) {
+                window.activeUserData.is_online = u.is_online !== undefined ? u.is_online : window.activeUserData.is_online;
+                window.activeUserData.last_seen = u.last_seen !== undefined ? u.last_seen : window.activeUserData.last_seen;
             }
+            
             const el = document.getElementById('chat_status');
-            el.innerText = u.is_online ? 'Online' : 'Visto ' + formatSeen(u.last_seen);
-            el.className = u.is_online ? 'text-xs font-black text-[#FF3B30]' : 'text-xs font-bold text-gray-500';
+            if (!el) return;
+            
+            const isOnline = u.is_online !== undefined ? u.is_online : (window.activeUserData ? window.activeUserData.is_online : false);
+            const lastSeen = u.last_seen !== undefined ? u.last_seen : (window.activeUserData ? window.activeUserData.last_seen : null);
+            
+            el.innerText = isOnline ? 'Online' : (lastSeen ? 'Visto ' + formatSeen(lastSeen) : 'Offline');
+            el.className = isOnline ? 'text-xs font-black text-[#FF3B30]' : 'text-xs font-bold text-gray-500';
         }
 
         function viewProfile() {
@@ -541,38 +651,87 @@
             </div>`;
         }
 
+        // Map para armazenar listeners de áudio por msgId
+        const audioListeners = new Map();
+
         function initAudioControls(msgId) {
             const bubble = document.querySelector(`[data-audio-id="${msgId}"]`);
             if (!bubble) return;
             const audio = bubble.querySelector('audio');
             if (!audio) return;
 
-            // Remover listeners antigos para evitar duplicação
-            audio.removeEventListener('timeupdate', updateAudioProgress);
-            audio.removeEventListener('loadedmetadata', updateAudioDuration);
-            audio.removeEventListener('ended', resetAudioPlayBtn);
+            // Remover listeners antigos se existirem
+            if (audioListeners.has(msgId)) {
+                const oldListeners = audioListeners.get(msgId);
+                audio.removeEventListener('timeupdate', oldListeners.updateProgress);
+                audio.removeEventListener('loadedmetadata', oldListeners.updateDuration);
+                audio.removeEventListener('canplay', oldListeners.updateDuration);
+                audio.removeEventListener('durationchange', oldListeners.updateDuration);
+                audio.removeEventListener('ended', oldListeners.resetPlayBtn);
+                audio.removeEventListener('play', oldListeners.onPlay);
+            }
 
             const updateAudioProgress = () => {
-                if(audio.duration && !isNaN(audio.duration)) {
+                if(audio.duration && !isNaN(audio.duration) && audio.duration > 0) {
                     const progress = (audio.currentTime / audio.duration) * 100;
-                    bubble.querySelector('.audio-progress-fill').style.width = progress + '%';
-                    bubble.querySelector('.current-time').innerText = formatAudioTime(audio.currentTime);
+                    const progressFill = bubble.querySelector('.audio-progress-fill');
+                    const currentTime = bubble.querySelector('.current-time');
+                    if (progressFill) progressFill.style.width = progress + '%';
+                    if (currentTime) currentTime.innerText = formatAudioTime(audio.currentTime);
                 }
             };
 
             const updateAudioDuration = () => {
-                bubble.querySelector('.duration-time').innerText = formatAudioTime(audio.duration);
+                if(audio.duration && !isNaN(audio.duration) && audio.duration > 0) {
+                    const durationTime = bubble.querySelector('.duration-time');
+                    if (durationTime) durationTime.innerText = formatAudioTime(audio.duration);
+                }
             };
 
             const resetAudioPlayBtn = () => {
-                bubble.querySelector('.play-icon').classList.remove('hidden');
-                bubble.querySelector('.pause-icon').classList.add('hidden');
-                bubble.querySelector('.audio-play-btn').classList.remove('playing');
+                const playIcon = bubble.querySelector('.play-icon');
+                const pauseIcon = bubble.querySelector('.pause-icon');
+                const btn = bubble.querySelector('.audio-play-btn');
+                if (playIcon) playIcon.classList.remove('hidden');
+                if (pauseIcon) pauseIcon.classList.add('hidden');
+                if (btn) btn.classList.remove('playing');
             };
 
+            const onPlay = () => {
+                // Fallback: se a duração ainda não foi carregada quando o play é acionado
+                if (!audio.duration || isNaN(audio.duration) || audio.duration === 0) {
+                    setTimeout(() => {
+                        if (audio.duration && !isNaN(audio.duration) && audio.duration > 0) {
+                            updateAudioDuration();
+                        }
+                    }, 100);
+                }
+            };
+
+            // Armazenar referências dos listeners
+            audioListeners.set(msgId, {
+                updateProgress: updateAudioProgress,
+                updateDuration: updateAudioDuration,
+                resetPlayBtn: resetAudioPlayBtn,
+                onPlay: onPlay
+            });
+
+            // Adicionar listeners
             audio.addEventListener('timeupdate', updateAudioProgress);
             audio.addEventListener('loadedmetadata', updateAudioDuration);
+            audio.addEventListener('canplay', updateAudioDuration);
+            audio.addEventListener('durationchange', updateAudioDuration);
             audio.addEventListener('ended', resetAudioPlayBtn);
+            audio.addEventListener('play', onPlay);
+
+            // Forçar carregamento do áudio
+            if (audio.readyState >= 1) {
+                // Áudio já tem metadados carregados
+                updateAudioDuration();
+            } else {
+                // Forçar carregamento
+                audio.load();
+            }
         }
 
         function toggleAudioPlay(e, msgId) {
@@ -619,10 +778,15 @@
         }
 
         function handleMsgPressStart(e, id) {
-            // Prevenir comportamento padrão de seleção
-            if(e.type === 'pointerdown') {
-                e.preventDefault();
+            // BLOQUEIO TOTAL de comportamento padrão do navegador
+            e.preventDefault();
+            e.stopPropagation();
+            
+            // Remover qualquer seleção existente
+            if (window.getSelection) {
+                window.getSelection().removeAllRanges();
             }
+            
             selectedMsgId = id;
             const bubble = e.currentTarget;
             longPressTimer = setTimeout(() => {
@@ -630,7 +794,11 @@
             }, 500);
         }
 
-        function handleMsgPressEnd() {
+        function handleMsgPressEnd(e) {
+            if (e) {
+                e.preventDefault();
+                e.stopPropagation();
+            }
             clearTimeout(longPressTimer);
         }
 
@@ -675,8 +843,15 @@
         function copyMsg() {
             const text = window.activeBubble.querySelector('p')?.innerText;
             if (text) {
-                navigator.clipboard.writeText(text);
-                alert("Copiado!");
+                // Sinalizar que a cópia é autorizada (via menu)
+                window.copyingFromMenu = true;
+                navigator.clipboard.writeText(text).then(() => {
+                    alert("Copiado!");
+                }).catch(err => {
+                    console.error('Erro ao copiar:', err);
+                }).finally(() => {
+                    window.copyingFromMenu = false;
+                });
             }
             closeContextMenu();
         }
@@ -735,9 +910,21 @@
         }
 
         function sendMsg() {
-            const i = document.getElementById('chat-input'); const t = i.value.trim(); if(!t || !active) return;
-            socket.emit('send_msg', { s:me.username, r:active, c:t, type:'text' });
-            i.value = ''; i.style.height = 'auto';
+            const i = document.getElementById('chat-input'); 
+            const t = i.value.trim(); 
+            
+            if(!t) return;
+            
+            if (isGroupChat && activeGroup) {
+                socket.emit('send_group_msg', { group_id: activeGroup, sender: me.username, content: t, type: 'text' });
+            } else if (active) {
+                socket.emit('send_msg', { s:me.username, r:active, c:t, type:'text' });
+            } else {
+                return;
+            }
+            
+            i.value = ''; 
+            i.style.height = 'auto';
             document.getElementById('btn-send').classList.add('hidden');
             document.getElementById('btn-audio').classList.remove('hidden');
         }
@@ -751,10 +938,38 @@
             });
         }
 
-        // Prevenir seleção de texto ao pressionar e segurar
+        // BLOQUEIO TOTAL de seleção de texto e menu de contexto do navegador
         document.addEventListener('selectstart', (e) => {
             if(e.target.closest('.msg-bubble')) {
                 e.preventDefault();
+                e.stopPropagation();
+                return false;
+            }
+        }, true);
+
+        document.addEventListener('contextmenu', (e) => {
+            if(e.target.closest('.msg-bubble')) {
+                e.preventDefault();
+                e.stopPropagation();
+                return false;
+            }
+        }, true);
+
+        // Bloquear copy event do navegador em mensagens
+        document.addEventListener('copy', (e) => {
+            if(e.target.closest('.msg-bubble') && !window.copyingFromMenu) {
+                e.preventDefault();
+                e.stopPropagation();
+                return false;
+            }
+        }, true);
+
+        // Bloquear drag de texto
+        document.addEventListener('dragstart', (e) => {
+            if(e.target.closest('.msg-bubble')) {
+                e.preventDefault();
+                e.stopPropagation();
+                return false;
             }
         }, true);
 
@@ -780,14 +995,14 @@
         });
         socket.on('connect', () => { if(me) socket.emit('join', me.username); });
 
-        // Auto-atualizar status e foto de perfil a cada 5 segundos
-        setInterval(async () => {
+        // Função para atualizar status do usuário ativo
+        async function refreshActiveUserStatus() {
             if(!me || !active) return;
             try {
                 const res = await fetch(`/user/${active}`);
                 if(res.ok) {
                     const updatedUser = await res.json();
-                    if(window.activeUserData) {
+                    if(window.activeUserData && window.activeUserData.username === updatedUser.username) {
                         // Atualizar dados do usuário ativo
                         const avatarChanged = window.activeUserData.avatar !== updatedUser.avatar;
                         const statusChanged = window.activeUserData.is_online !== updatedUser.is_online || window.activeUserData.last_seen !== updatedUser.last_seen;
@@ -804,19 +1019,28 @@
                         
                         // Atualizar status no chat se mudou
                         if(statusChanged) {
-                            updateChatStatus({ is_online: updatedUser.is_online, last_seen: updatedUser.last_seen });
+                            updateChatStatus({ username: updatedUser.username, is_online: updatedUser.is_online, last_seen: updatedUser.last_seen });
                         }
                         
                         // Atualizar perfil aberto se estiver visível
-                        if(document.getElementById('profile-modal').classList.contains('hidden') === false) {
+                        const profileModal = document.getElementById('profile-modal');
+                        if(profileModal && !profileModal.classList.contains('hidden')) {
                             if(avatarChanged) {
-                                document.getElementById('prof_avatar').src = updatedUser.avatar || `https://ui-avatars.com/api/?background=1C1C1E&color=fff&name=${updatedUser.display_name}`;
+                                const profAvatar = document.getElementById('prof_avatar');
+                                if(profAvatar) {
+                                    profAvatar.src = updatedUser.avatar || `https://ui-avatars.com/api/?background=1C1C1E&color=fff&name=${updatedUser.display_name}`;
+                                }
                             }
                         }
                     }
                 }
-            } catch(e) { console.error('Auto-update error:', e); }
-        }, 5000);
+            } catch(e) { 
+                console.error('Status refresh error:', e); 
+            }
+        }
+
+        // Auto-atualizar status e foto de perfil a cada 3 segundos (mais rápido)
+        setInterval(refreshActiveUserStatus, 3000);
 
         // Auto-atualizar dados do perfil do usuário logado
         setInterval(async () => {
@@ -847,7 +1071,14 @@
             document.getElementById('tab-'+t).classList.remove('hidden'); document.getElementById('btn-'+t).classList.replace('text-gray-600', 'text-[#FF3B30]');
             if(t==='chats') loadChats();
         }
-        function closeChat() { document.getElementById('chat-room').classList.remove('chat-open'); active = null; loadChats(); }
+        function closeChat() { 
+            document.getElementById('chat-room').classList.remove('chat-open'); 
+            active = null; 
+            activeGroup = null; 
+            isGroupChat = false; 
+            currentGroupData = null;
+            loadChats(); 
+        }
         function startChat() { const u = document.getElementById('new-chat-input').value.trim().toLowerCase(); if(u) { document.getElementById('new-chat-modal').classList.add('hidden'); openChat(u); } }
         function logout() { localStorage.removeItem('tg_v2026'); location.reload(); }
         function updateUI() {
@@ -871,11 +1102,211 @@
             };
         }
         async function sendMedia(ev) {
-            const file = ev.target.files[0]; if(!file || !active) return;
-            const type = file.type.startsWith('image') ? 'image' : (file.type.startsWith('video') ? 'video' : 'file');
+            const file = ev.target.files[0]; if(!file) return;
+            const type = file.type.startsWith('image') ? 'image' : (file.type.startsWith('video') ? 'video' : (file.type.startsWith('audio') ? 'audio' : 'file'));
             const reader = new FileReader(); reader.readAsDataURL(file);
-            reader.onload = () => socket.emit('send_msg', { s: me.username, r: active, c: reader.result, type: type });
+            if (isGroupChat && activeGroup) {
+                reader.onload = () => socket.emit('send_group_msg', { group_id: activeGroup, sender: me.username, content: reader.result, type: type });
+            } else if (active) {
+                reader.onload = () => socket.emit('send_msg', { s: me.username, r: active, c: reader.result, type: type });
+            }
         }
+        
+        // --- FUNÇÕES DE GRUPOS ---
+        async function createGroup() {
+            const name = document.getElementById('group-name-input').value.trim();
+            const description = document.getElementById('group-desc-input').value.trim();
+            
+            if (!name) {
+                alert('Digite um nome para o grupo');
+                return;
+            }
+            
+            const res = await fetch('/groups/create', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ name, description, created_by: me.username })
+            });
+            
+            const data = await res.json();
+            if (data.ok) {
+                document.getElementById('new-group-modal').classList.add('hidden');
+                document.getElementById('group-name-input').value = '';
+                document.getElementById('group-desc-input').value = '';
+                loadChats();
+                openGroupChat(data.group_id);
+            } else {
+                alert('Erro ao criar grupo: ' + (data.error || 'Erro desconhecido'));
+            }
+        }
+        
+        async function openGroupChat(groupId) {
+            isGroupChat = true;
+            activeGroup = groupId;
+            active = null;
+            
+            const groupData = await fetch(`/groups/${groupId}`).then(r => r.json());
+            currentGroupData = groupData;
+            
+            document.getElementById('chat_name').innerText = groupData.name;
+            document.getElementById('chat_avatar').src = groupData.avatar || `https://ui-avatars.com/api/?background=FF3B30&color=fff&name=${groupData.name}`;
+            
+            const statusEl = document.getElementById('chat_status');
+            statusEl.innerText = `${groupData.members.length} membros`;
+            statusEl.className = 'text-xs font-bold text-gray-500';
+            
+            const msgContainer = document.getElementById('msg-container');
+            msgContainer.style.backgroundImage = me.bg_image ? `linear-gradient(rgba(0,0,0,0.7), rgba(0,0,0,0.7)), url(${me.bg_image})` : 'none';
+            document.getElementById('chat-room').classList.add('chat-open');
+            
+            const msgs = await fetch(`/groups/${groupId}/messages`).then(r => r.json());
+            msgContainer.innerHTML = '';
+            msgs.forEach(m => addGroupMsg(m));
+            msgContainer.scrollTop = msgContainer.scrollHeight;
+        }
+        
+        function addGroupMsg(m) {
+            const isMe = m.sender.toLowerCase() === me.username.toLowerCase();
+            const div = document.createElement('div');
+            div.className = `flex flex-col ${isMe ? 'items-end' : 'items-start'} mb-1 msg-wrapper`;
+            div.id = `gmsg-${m.id}`;
+            
+            let content = `<p>${m.content}</p>`;
+            if(m.type === 'image') content = `<img src="${m.content}" class="rounded-xl max-w-full border border-white/5">`;
+            if(m.type === 'audio') content = createAudioBubble(m.content, m.id);
+            
+            const reactionHtml = m.reaction ? `<div class="msg-reaction">${m.reaction}</div>` : '';
+            const pinnedHtml = m.pinned ? '<svg class="w-3 h-3 text-[#FF3B30] inline-block mr-1" fill="currentColor" viewBox="0 0 20 20"><path d="M10 2a1 1 0 011 1v1.323l3.954 1.582 1.599-.8a1 1 0 01.894 1.79l-1.233.616 1.738 5.42a1 1 0 01-.285 1.05A3.989 3.989 0 0115 15a3.989 3.989 0 01-2.667-1.019 1 1 0 01-.285-1.05l1.738-5.42-1.233-.617a1 1 0 01.894-1.788l1.599.799L11 4.323V3a1 1 0 011-1h-2zM5 8a1 1 0 011-1h1a1 1 0 010 2H6a1 1 0 01-1-1zm0 4a1 1 0 011-1h1a1 1 0 110 2H6a1 1 0 01-1-1z"/></svg>' : '';
+            
+            div.innerHTML = `
+                <div class="msg-bubble ${isMe ? 'msg-me' : 'msg-them'}" 
+                     onpointerdown="handleMsgPressStart(event, ${m.id})" 
+                     onpointerup="handleMsgPressEnd(event)" 
+                     onpointercancel="handleMsgPressEnd(event)">
+                    ${!isMe ? `<p class="text-xs font-black text-[#FF3B30] mb-1">${m.sender}</p>` : ''}
+                    ${pinnedHtml}${content}
+                    ${reactionHtml}
+                    <div class="flex items-center justify-end gap-1 mt-1 opacity-70 text-[9px] font-black">
+                        <span>${formatTime(m.time)}</span>
+                    </div>
+                </div>`;
+            document.getElementById('msg-container').appendChild(div);
+            
+            if(m.type === 'audio') {
+                setTimeout(() => initAudioControls(m.id), 0);
+            }
+        }
+        
+        function viewGroupInfo() {
+            if (!currentGroupData) return;
+            
+            document.getElementById('group-info-name').innerText = currentGroupData.name;
+            document.getElementById('group-info-desc').innerText = currentGroupData.description || 'Sem descrição';
+            document.getElementById('group-info-avatar').src = currentGroupData.avatar || `https://ui-avatars.com/api/?background=FF3B30&color=fff&name=${currentGroupData.name}`;
+            document.getElementById('group-info-members-count').innerText = `${currentGroupData.members.length} membros`;
+            
+            const membersList = document.getElementById('group-members-list');
+            membersList.innerHTML = currentGroupData.members.map(m => `
+                <div class="flex items-center gap-3 p-2">
+                    <img src="${m.avatar || 'https://ui-avatars.com/api/?name='+m.username}" class="w-10 h-10 rounded-full">
+                    <div class="flex-1">
+                        <p class="font-bold">${m.display_name}</p>
+                        <p class="text-xs text-gray-500">@${m.username}</p>
+                    </div>
+                    ${m.role === 'admin' ? '<span class="text-xs font-black text-[#FF3B30]">ADMIN</span>' : ''}
+                </div>
+            `).join('');
+            
+            // Mostrar/ocultar botão de configurações baseado em permissão
+            const myMember = currentGroupData.members.find(m => m.username === me.username);
+            const isAdmin = myMember && myMember.role === 'admin';
+            document.getElementById('group-settings-btn').style.display = isAdmin ? 'block' : 'none';
+            
+            document.getElementById('group-info-modal').classList.remove('hidden');
+        }
+        
+        async function leaveGroup() {
+            if (!activeGroup) return;
+            
+            if (!confirm('Deseja realmente sair deste grupo?')) return;
+            
+            const res = await fetch(`/groups/${activeGroup}/leave`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ username: me.username })
+            });
+            
+            if (res.ok) {
+                document.getElementById('group-info-modal').classList.add('hidden');
+                closeChat();
+            }
+        }
+        
+        // Socket events para grupos
+        socket.on('new_group_msg', m => {
+            if (isGroupChat && activeGroup === m.group_id) {
+                addGroupMsg(m);
+                const cont = document.getElementById('msg-container');
+                cont.scrollTop = cont.scrollHeight;
+            }
+            loadChats();
+        });
+        
+        socket.on('group_msg_deleted', data => {
+            const el = document.getElementById(`gmsg-${data.id}`);
+            if (el) el.remove();
+        });
+        
+        socket.on('group_msg_reacted', data => {
+            const bubble = document.querySelector(`#gmsg-${data.id} .msg-bubble`);
+            if (bubble) {
+                let reaction = bubble.querySelector('.msg-reaction');
+                if (reaction) {
+                    reaction.innerText = data.reaction;
+                } else {
+                    const reactionDiv = document.createElement('div');
+                    reactionDiv.className = 'msg-reaction';
+                    reactionDiv.innerText = data.reaction;
+                    bubble.appendChild(reactionDiv);
+                }
+            }
+        });
+        
+        socket.on('new_group', data => {
+            loadChats();
+        });
+        
+        socket.on('group_member_added', data => {
+            if (isGroupChat && activeGroup === data.group_id) {
+                // Recarregar dados do grupo
+                fetch(`/groups/${data.group_id}`).then(r => r.json()).then(groupData => {
+                    currentGroupData = groupData;
+                    document.getElementById('chat_status').innerText = `${groupData.members.length} membros`;
+                });
+            }
+            loadChats();
+        });
+        
+        socket.on('group_member_removed', data => {
+            if (data.username === me.username && isGroupChat && activeGroup === data.group_id) {
+                // Usuário foi removido do grupo
+                alert('Você foi removido deste grupo');
+                closeChat();
+            }
+            loadChats();
+        });
+        
+        socket.on('group_updated', data => {
+            if (isGroupChat && activeGroup === data.group_id) {
+                // Recarregar dados do grupo
+                fetch(`/groups/${data.group_id}`).then(r => r.json()).then(groupData => {
+                    currentGroupData = groupData;
+                    document.getElementById('chat_name').innerText = groupData.name;
+                    document.getElementById('chat_avatar').src = groupData.avatar || `https://ui-avatars.com/api/?background=FF3B30&color=fff&name=${groupData.name}`;
+                });
+            }
+            loadChats();
+        });
     </script>
 </body>
 </html>
