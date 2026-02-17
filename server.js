@@ -46,10 +46,10 @@ db.serialize(() => {
     db.run(`CREATE TABLE IF NOT EXISTS stories (
         id INTEGER PRIMARY KEY AUTOINCREMENT, 
         username TEXT NOT NULL, 
-        content TEXT NOT NULL, 
-        type TEXT, 
-        caption TEXT, 
-        bg_color TEXT, 
+        content TEXT, 
+        type TEXT DEFAULT 'text', 
+        caption TEXT DEFAULT '', 
+        bg_color TEXT DEFAULT '#FF3B30', 
         viewers TEXT DEFAULT '[]', 
         time TEXT NOT NULL
     )`);
@@ -516,15 +516,15 @@ app.get('/stories', (req, res) => {
 app.post('/stories', (req, res) => {
     const { username, content, type, caption, bg_color } = req.body;
     let finalContent = content;
-    if (type !== 'text' && content.startsWith('data:')) {
+    if (type !== 'text' && content && content.startsWith('data:')) {
         finalContent = saveBase64File(content, 'uploads', 'story_' + username);
     }
     const time = new Date().toISOString();
     db.run("INSERT INTO stories (username, content, type, caption, bg_color, time) VALUES (?, ?, ?, ?, ?, ?)",
-        [username, finalContent, type, caption || '', bg_color || '', time],
+        [username, finalContent || '', type || 'text', caption || '', bg_color || '#FF3B30', time],
         function(err) {
             if (err) return res.status(500).json({ error: err.message });
-            io.emit('new_story', { id: this.lastID, username, content: finalContent, type, time });
+            io.emit('new_story', { id: this.lastID, username, content: finalContent, type: type || 'text', caption: caption || '', bg_color: bg_color || '#FF3B30', time });
             res.json({ ok: true });
         }
     );
