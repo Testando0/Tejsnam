@@ -62,6 +62,23 @@
 
         /* Call Overlay */
         #call-overlay { position: fixed; inset: 0; z-index: 4000; background: #1C1C1E; display: none; flex-direction: column; align-items: center; justify-content: space-around; padding: 40px; }
+
+        /* Audio Bubble Styles (Telegram Style) */
+        .audio-bubble { display: flex; align-items: center; gap: 12px; padding: 8px 12px; background: rgba(255, 255, 255, 0.1); border-radius: 18px; min-width: 200px; }
+        .audio-play-btn { width: 36px; height: 36px; border-radius: 50%; background: var(--tg-bubble-me); flex-shrink: 0; display: flex; align-items: center; justify-content: center; cursor: pointer; transition: transform 0.2s; }
+        .audio-play-btn:active { transform: scale(0.95); }
+        .audio-play-btn.playing { background: #FF3B30; }
+        .audio-info { display: flex; flex-direction: column; gap: 4px; flex: 1; }
+        .audio-progress { width: 100%; height: 3px; background: rgba(255, 255, 255, 0.2); border-radius: 2px; cursor: pointer; }
+        .audio-progress-fill { height: 100%; background: #FF3B30; border-radius: 2px; width: 0%; }
+        .audio-time { font-size: 12px; color: rgba(255, 255, 255, 0.6); }
+        .audio-waveform { display: flex; align-items: center; gap: 2px; height: 20px; }
+        .audio-waveform-bar { width: 2px; height: 100%; background: rgba(255, 255, 255, 0.4); border-radius: 1px; }
+        .audio-waveform-bar.active { background: #FF3B30; }
+
+        /* Prevent text selection on long press */
+        .msg-bubble { -webkit-user-select: none; -moz-user-select: none; -ms-user-select: none; user-select: none; }
+        .msg-bubble * { -webkit-user-select: none; -moz-user-select: none; -ms-user-select: none; user-select: none; }
     </style>
 </head>
 <body>
@@ -69,7 +86,7 @@
     <!-- Auth Screen -->
     <div id="login-screen" class="fixed inset-0 flex flex-col items-center justify-center p-8 z-[1000] bg-black">
         <div class="w-24 h-24 premium-gradient rounded-[2rem] flex items-center justify-center mb-8 shadow-2xl shadow-red-500/40 pulse-red">
-            <svg class="w-14 h-14 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="2.5"><path d="M13 10V3L4 14h7v7l9-11h-7z"/></svg>
+            <svg class="w-14 h-14" viewBox="0 0 100 100" fill="none" xmlns="http://www.w3.org/2000/svg"><path d="M 90 10 L 20 50 L 90 90 L 70 50 Z" fill="#FF3B30" stroke="#000" stroke-width="1.5"/><path d="M 70 50 L 40 70 L 50 50 Z" fill="#000" opacity="0.7"/><path d="M 90 10 L 50 40 L 70 50 Z" fill="#FFF" opacity="0.25"/></svg>
         </div>
         <h1 class="text-4xl font-black mb-2 italic tracking-tighter">TELEGRAM <span class="text-[#FF3B30]">2026</span></h1>
         <p class="text-gray-500 mb-10 font-medium uppercase tracking-widest text-xs">Experience Ultra Premium</p>
@@ -233,10 +250,6 @@
                 <div class="bg-[#1C1C1E] p-5 rounded-3xl border border-white/5">
                     <label class="text-[10px] text-[#FF3B30] font-black uppercase tracking-widest">Bio</label>
                     <p id="prof_bio" class="text-white font-medium mt-1"></p>
-                </div>
-                <div class="bg-[#1C1C1E] p-5 rounded-3xl border border-white/5">
-                    <label class="text-[10px] text-[#FF3B30] font-black uppercase tracking-widest">Status</label>
-                    <p id="prof_status_text" class="text-white font-medium mt-1"></p>
                 </div>
             </div>
         </div>
@@ -474,8 +487,6 @@
             document.getElementById('prof_dn').innerText = u.display_name;
             document.getElementById('prof_un').innerText = '@' + u.username;
             document.getElementById('prof_bio').innerText = u.bio || 'Sem bio';
-            document.getElementById('prof_status_text').innerText = u.is_online ? 'Online' : 'Visto ' + formatSeen(u.last_seen);
-            document.getElementById('prof_online_indicator').classList.toggle('hidden', !u.is_online);
             document.getElementById('profile-modal').classList.remove('hidden');
         }
 
@@ -486,17 +497,16 @@
             div.id = `msg-${m.id}`;
             let content = `<p>${m.c}</p>`;
             if(m.type === 'image') content = `<img src="${m.c}" class="rounded-xl max-w-full border border-white/5">`;
-            if(m.type === 'audio') content = `<audio src="${m.c}" controls class="max-w-full"></audio>`;
+            if(m.type === 'audio') content = createAudioBubble(m.c, m.id);
             if(m.type === 'call') content = `<div class="flex items-center gap-2 py-1"><svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path d="M3 5a2 2 0 012-2h3.28a1 1 0 01.948.684l1.498 4.493a1 1 0 01-.502 1.21l-2.257 1.13a11.042 11.042 0 005.516 5.516l1.13-2.257a1 1 0 011.21-.502l4.493 1.498a1 1 0 01.684.949V19a2 2 0 01-2 2h-1C9.716 21 3 14.284 3 6V5z"/></svg> <span class="font-bold">${m.c}</span></div>`;
             
             const reactionHtml = m.reaction ? `<div class="msg-reaction">${m.reaction}</div>` : '';
             
             div.innerHTML = `
                 <div class="msg-bubble ${isMe ? 'msg-me' : 'msg-them'}" 
-                     onmousedown="handleMsgPressStart(event, ${m.id})" 
-                     onmouseup="handleMsgPressEnd()" 
-                     ontouchstart="handleMsgPressStart(event, ${m.id})" 
-                     ontouchend="handleMsgPressEnd()">
+                     onpointerdown="handleMsgPressStart(event, ${m.id})" 
+                     onpointerup="handleMsgPressEnd()" 
+                     onpointercancel="handleMsgPressEnd()">
                     ${content}
                     ${reactionHtml}
                     <div class="flex items-center justify-end gap-1 mt-1 opacity-70 text-[9px] font-black">
@@ -505,9 +515,114 @@
                     </div>
                 </div>`;
             document.getElementById('msg-container').appendChild(div);
+            
+            // Inicializar controles de áudio se necessário
+            if(m.type === 'audio') {
+                setTimeout(() => initAudioControls(m.id), 0);
+            }
+        }
+
+        function createAudioBubble(src, msgId) {
+            return `<div class="audio-bubble" data-audio-id="${msgId}">
+                <div class="audio-play-btn" onclick="toggleAudioPlay(event, ${msgId})">
+                    <svg class="w-4 h-4 text-white play-icon" fill="currentColor" viewBox="0 0 24 24"><path d="M8 5v14l11-7z"/></svg>
+                    <svg class="w-4 h-4 text-white pause-icon hidden" fill="currentColor" viewBox="0 0 24 24"><path d="M6 4h4v16H6V4zm8 0h4v16h-4V4z"/></svg>
+                </div>
+                <div class="audio-info">
+                    <div class="audio-progress" onclick="seekAudio(event, ${msgId})">
+                        <div class="audio-progress-fill"></div>
+                    </div>
+                    <div class="flex items-center justify-between">
+                        <span class="audio-time current-time">0:00</span>
+                        <span class="audio-time duration-time">0:00</span>
+                    </div>
+                </div>
+                <audio src="${src}" data-msg-id="${msgId}" style="display: none;"></audio>
+            </div>`;
+        }
+
+        function initAudioControls(msgId) {
+            const bubble = document.querySelector(`[data-audio-id="${msgId}"]`);
+            if (!bubble) return;
+            const audio = bubble.querySelector('audio');
+            if (!audio) return;
+
+            // Remover listeners antigos para evitar duplicação
+            audio.removeEventListener('timeupdate', updateAudioProgress);
+            audio.removeEventListener('loadedmetadata', updateAudioDuration);
+            audio.removeEventListener('ended', resetAudioPlayBtn);
+
+            const updateAudioProgress = () => {
+                if(audio.duration && !isNaN(audio.duration)) {
+                    const progress = (audio.currentTime / audio.duration) * 100;
+                    bubble.querySelector('.audio-progress-fill').style.width = progress + '%';
+                    bubble.querySelector('.current-time').innerText = formatAudioTime(audio.currentTime);
+                }
+            };
+
+            const updateAudioDuration = () => {
+                bubble.querySelector('.duration-time').innerText = formatAudioTime(audio.duration);
+            };
+
+            const resetAudioPlayBtn = () => {
+                bubble.querySelector('.play-icon').classList.remove('hidden');
+                bubble.querySelector('.pause-icon').classList.add('hidden');
+                bubble.querySelector('.audio-play-btn').classList.remove('playing');
+            };
+
+            audio.addEventListener('timeupdate', updateAudioProgress);
+            audio.addEventListener('loadedmetadata', updateAudioDuration);
+            audio.addEventListener('ended', resetAudioPlayBtn);
+        }
+
+        function toggleAudioPlay(e, msgId) {
+            e.stopPropagation();
+            const bubble = document.querySelector(`[data-audio-id="${msgId}"]`);
+            if(!bubble) return;
+            const audio = bubble.querySelector('audio');
+            if(!audio) return;
+            const playIcon = bubble.querySelector('.play-icon');
+            const pauseIcon = bubble.querySelector('.pause-icon');
+            const btn = bubble.querySelector('.audio-play-btn');
+
+            if (audio.paused) {
+                audio.play().catch(err => console.error('Erro ao reproduzir áudio:', err));
+                playIcon.classList.add('hidden');
+                pauseIcon.classList.remove('hidden');
+                btn.classList.add('playing');
+            } else {
+                audio.pause();
+                playIcon.classList.remove('hidden');
+                pauseIcon.classList.add('hidden');
+                btn.classList.remove('playing');
+            }
+        }
+
+        function seekAudio(e, msgId) {
+            e.stopPropagation();
+            const bubble = document.querySelector(`[data-audio-id="${msgId}"]`);
+            if(!bubble) return;
+            const audio = bubble.querySelector('audio');
+            if(!audio || !audio.duration || isNaN(audio.duration)) return;
+            const progress = bubble.querySelector('.audio-progress');
+            const rect = progress.getBoundingClientRect();
+            const clientX = e.clientX || (e.touches && e.touches[0].clientX) || 0;
+            const percent = Math.max(0, Math.min(1, (clientX - rect.left) / rect.width));
+            audio.currentTime = percent * audio.duration;
+        }
+
+        function formatAudioTime(seconds) {
+            if (!seconds || isNaN(seconds)) return '0:00';
+            const mins = Math.floor(seconds / 60);
+            const secs = Math.floor(seconds % 60);
+            return `${mins}:${secs.toString().padStart(2, '0')}`;
         }
 
         function handleMsgPressStart(e, id) {
+            // Prevenir comportamento padrão de seleção
+            if(e.type === 'pointerdown') {
+                e.preventDefault();
+            }
             selectedMsgId = id;
             const bubble = e.currentTarget;
             longPressTimer = setTimeout(() => {
@@ -610,6 +725,12 @@
             if (mediaRecorder && mediaRecorder.state !== 'inactive') {
                 mediaRecorder.stop();
                 document.getElementById('btn-audio').classList.remove('text-[#FF3B30]', 'pulse-red');
+                // Parar todos os tracks de áudio após um pequeno delay
+                setTimeout(() => {
+                    if(mediaRecorder && mediaRecorder.stream) {
+                        mediaRecorder.stream.getTracks().forEach(track => track.stop());
+                    }
+                }, 100);
             }
         }
 
@@ -621,11 +742,21 @@
             document.getElementById('btn-audio').classList.remove('hidden');
         }
 
-        document.getElementById('chat-input').addEventListener('input', function() {
-            const hasText = this.value.trim().length > 0;
-            document.getElementById('btn-send').classList.toggle('hidden', !hasText);
-            document.getElementById('btn-audio').classList.toggle('hidden', hasText);
-        });
+        const chatInput = document.getElementById('chat-input');
+        if(chatInput) {
+            chatInput.addEventListener('input', function() {
+                const hasText = this.value.trim().length > 0;
+                document.getElementById('btn-send').classList.toggle('hidden', !hasText);
+                document.getElementById('btn-audio').classList.toggle('hidden', hasText);
+            });
+        }
+
+        // Prevenir seleção de texto ao pressionar e segurar
+        document.addEventListener('selectstart', (e) => {
+            if(e.target.closest('.msg-bubble')) {
+                e.preventDefault();
+            }
+        }, true);
 
         socket.on('new_msg', m => {
             const sender = m.s.toLowerCase(); const recipient = m.r.toLowerCase();
@@ -638,8 +769,76 @@
         });
 
         socket.on('msgs_read_update', d => { if(active === d.reader.toLowerCase()) document.querySelectorAll('.msg-me .status-icon').forEach(el => el.innerText = '✓✓'); loadChats(); });
-        socket.on('user_status_change', d => { if(active === d.username.toLowerCase()) updateChatStatus({ is_online: d.status === 'online', last_seen: d.last_seen }); loadChats(); });
+        socket.on('user_status_change', d => { 
+            if(active === d.username.toLowerCase()) updateChatStatus({ is_online: d.status === 'online', last_seen: d.last_seen }); 
+            loadChats();
+            // Atualizar dados do usuário ativo
+            if(window.activeUserData && window.activeUserData.username === d.username.toLowerCase()) {
+                window.activeUserData.is_online = d.status === 'online';
+                window.activeUserData.last_seen = d.last_seen;
+            }
+        });
         socket.on('connect', () => { if(me) socket.emit('join', me.username); });
+
+        // Auto-atualizar status e foto de perfil a cada 5 segundos
+        setInterval(async () => {
+            if(!me || !active) return;
+            try {
+                const res = await fetch(`/user/${active}`);
+                if(res.ok) {
+                    const updatedUser = await res.json();
+                    if(window.activeUserData) {
+                        // Atualizar dados do usuário ativo
+                        const avatarChanged = window.activeUserData.avatar !== updatedUser.avatar;
+                        const statusChanged = window.activeUserData.is_online !== updatedUser.is_online || window.activeUserData.last_seen !== updatedUser.last_seen;
+                        
+                        window.activeUserData = updatedUser;
+                        
+                        // Atualizar avatar no chat se mudou
+                        if(avatarChanged) {
+                            const chatAvatar = document.getElementById('chat_avatar');
+                            if(chatAvatar) {
+                                chatAvatar.src = updatedUser.avatar || `https://ui-avatars.com/api/?background=1C1C1E&color=fff&name=${updatedUser.display_name}`;
+                            }
+                        }
+                        
+                        // Atualizar status no chat se mudou
+                        if(statusChanged) {
+                            updateChatStatus({ is_online: updatedUser.is_online, last_seen: updatedUser.last_seen });
+                        }
+                        
+                        // Atualizar perfil aberto se estiver visível
+                        if(document.getElementById('profile-modal').classList.contains('hidden') === false) {
+                            if(avatarChanged) {
+                                document.getElementById('prof_avatar').src = updatedUser.avatar || `https://ui-avatars.com/api/?background=1C1C1E&color=fff&name=${updatedUser.display_name}`;
+                            }
+                        }
+                    }
+                }
+            } catch(e) { console.error('Auto-update error:', e); }
+        }, 5000);
+
+        // Auto-atualizar dados do perfil do usuário logado
+        setInterval(async () => {
+            if(!me) return;
+            try {
+                const res = await fetch(`/user/${me.username}`);
+                if(res.ok) {
+                    const updatedMe = await res.json();
+                    const avatarChanged = me.avatar !== updatedMe.avatar;
+                    const displayNameChanged = me.display_name !== updatedMe.display_name;
+                    const bioChanged = me.bio !== updatedMe.bio;
+                    
+                    me = updatedMe;
+                    localStorage.setItem('tg_v2026', JSON.stringify(me));
+                    
+                    // Atualizar UI se houver mudanças
+                    if(avatarChanged || displayNameChanged || bioChanged) {
+                        updateUI();
+                    }
+                }
+            } catch(e) { console.error('Profile update error:', e); }
+        }, 5000);
 
         function formatTime(t) { return t ? new Date(t).toLocaleTimeString([], {hour:'2-digit', minute:'2-digit'}) : ''; }
         function formatSeen(t) { if(!t) return 'há algum tempo'; const diff = (new Date() - new Date(t)) / 1000; if(diff < 60) return 'agora'; if(diff < 3600) return Math.floor(diff/60)+'m atrás'; return formatTime(t); }
