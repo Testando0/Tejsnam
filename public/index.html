@@ -17,7 +17,7 @@
             --tg-text: #FFFFFF;
             --tg-gray: #8E8E93;
         }
-        body, html { height: 100%; width: 100%; overflow: hidden; background: var(--tg-bg); color: var(--tg-text); font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; -webkit-tap-highlight-color: transparent; }
+        body, html { height: 100%; width: 100%; overflow: hidden; background: var(--tg-bg); color: var(--tg-text); font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; -webkit-tap-highlight-color: transparent; -webkit-touch-callout: none !important; -webkit-user-select: none !important; user-select: none !important; }
         .safe-pt { padding-top: env(safe-area-inset-top); }
         .safe-pb { padding-bottom: env(safe-area-inset-bottom); }
         .bg-blur { backdrop-filter: blur(25px); -webkit-backdrop-filter: blur(25px); }
@@ -78,21 +78,21 @@
 
         /* Prevent text selection on long press - BLOQUEIO TOTAL */
         .msg-bubble { 
-            -webkit-user-select: none; 
-            -moz-user-select: none; 
-            -ms-user-select: none; 
-            user-select: none; 
-            -webkit-touch-callout: none; /* iOS callout menu */
-            touch-action: manipulation; /* Prevenir gestos do navegador */
-            -webkit-tap-highlight-color: transparent; /* Remover highlight do tap */
+            -webkit-user-select: none !important; 
+            -moz-user-select: none !important; 
+            -ms-user-select: none !important; 
+            user-select: none !important; 
+            -webkit-touch-callout: none !important; /* iOS callout menu */
+            touch-action: none !important; /* Prevenir gestos do navegador */
+            -webkit-tap-highlight-color: transparent !important; /* Remover highlight do tap */
         }
         .msg-bubble * { 
-            -webkit-user-select: none; 
-            -moz-user-select: none; 
-            -ms-user-select: none; 
-            user-select: none; 
-            -webkit-touch-callout: none;
-            pointer-events: none; /* Desabilitar eventos de ponteiro em elementos filhos */
+            -webkit-user-select: none !important; 
+            -moz-user-select: none !important; 
+            -ms-user-select: none !important; 
+            user-select: none !important; 
+            -webkit-touch-callout: none !important;
+            pointer-events: none !important; /* Desabilitar eventos de ponteiro em elementos filhos */
         }
         /* Reabilitar eventos de ponteiro apenas em elementos interativos */
         .msg-bubble .audio-play-btn,
@@ -139,8 +139,17 @@
         <!-- Stories Section -->
         <div id="stories-container" class="flex gap-4 p-4 overflow-x-auto no-scrollbar border-b border-white/5">
             <div class="flex flex-col items-center gap-1">
-                <div class="story-circle" style="border-color: #555;" onclick="document.getElementById('story_input').click()">
-                    <div class="w-full h-full rounded-full bg-[#1C1C1E] flex items-center justify-center text-white text-2xl">+</div>
+                <div class="flex gap-2">
+                    <div class="story-circle" style="border-color: #555;" onclick="document.getElementById('story_input').click()" title="Postar Foto">
+                        <div class="w-full h-full rounded-full bg-[#1C1C1E] flex items-center justify-center text-white text-2xl">
+                            <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path d="M3 9a2 2 0 012-2h.93a2 2 0 001.664-.89l.812-1.22A2 2 0 0110.07 4h3.86a2 2 0 011.664.89l.812 1.22A2 2 0 0018.07 7H19a2 2 0 012 2v9a2 2 0 01-2 2H5a2 2 0 01-2-2V9z"/><path d="M15 13a3 3 0 11-6 0 3 3 0 016 0z"/></svg>
+                        </div>
+                    </div>
+                    <div class="story-circle" style="border-color: #555;" onclick="openTextStory()" title="Postar Texto">
+                        <div class="w-full h-full rounded-full bg-[#1C1C1E] flex items-center justify-center text-white text-2xl">
+                            <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"/></svg>
+                        </div>
+                    </div>
                 </div>
                 <span class="text-[10px] font-bold">Meu Status</span>
             </div>
@@ -237,8 +246,8 @@
         <div class="flex-1 flex items-center justify-center relative">
             <img id="story-img" class="max-w-full max-h-full object-contain">
             <div id="story-text-container" class="absolute inset-0 flex items-center justify-center p-10 text-center text-3xl font-bold"></div>
+            <div id="story-caption-display" class="absolute bottom-10 left-0 right-0 p-6 text-center bg-black/40 backdrop-blur-md text-white font-bold hidden"></div>
         </div>
-        <div id="story-caption" class="p-6 text-center bg-gradient-to-t from-black/80 to-transparent"></div>
     </div>
 
     <!-- Call Overlay -->
@@ -315,8 +324,11 @@
         </header>
         <div class="flex-1 overflow-y-auto p-6">
             <div class="flex flex-col items-center mb-6">
-                <div class="relative w-32 h-32 mb-4">
+                <div class="relative w-32 h-32 mb-4 cursor-pointer" onclick="document.getElementById('group_avatar_file').click()">
                     <img id="group-info-avatar" class="w-full h-full rounded-full object-cover border-4 border-[#FF3B30]/20 shadow-2xl">
+                    <div class="absolute inset-0 flex items-center justify-center bg-black/40 rounded-full opacity-0 hover:opacity-100 transition-opacity">
+                        <svg class="w-8 h-8 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path d="M3 9a2 2 0 012-2h.93a2 2 0 001.664-.89l.812-1.22A2 2 0 0110.07 4h3.86a2 2 0 011.664.89l.812 1.22A2 2 0 0018.07 7H19a2 2 0 012 2v9a2 2 0 01-2 2H5a2 2 0 01-2-2V9z"/><path d="M15 13a3 3 0 11-6 0 3 3 0 016 0z"/></svg>
+                    </div>
                 </div>
                 <h2 id="group-info-name" class="text-3xl font-black mb-2"></h2>
                 <p id="group-info-desc" class="text-gray-400 text-center mb-4"></p>
@@ -324,7 +336,10 @@
             </div>
             
             <div class="bg-[#1C1C1E] rounded-3xl border border-white/5 p-4 mb-4">
-                <h4 class="text-xs font-black text-[#FF3B30] uppercase tracking-widest mb-3">Membros</h4>
+                <div class="flex justify-between items-center mb-3">
+                    <h4 class="text-xs font-black text-[#FF3B30] uppercase tracking-widest">Membros</h4>
+                    <button onclick="showAddMemberModal()" class="text-[#FF3B30] text-xs font-black">+ ADICIONAR</button>
+                </div>
                 <div id="group-members-list" class="space-y-2"></div>
             </div>
             
@@ -332,9 +347,70 @@
         </div>
     </div>
 
+    <!-- Modal Adicionar Membro -->
+    <div id="add-member-modal" class="fixed inset-0 z-[1200] hidden bg-black/90 backdrop-blur flex items-center justify-center p-6">
+        <div class="w-full max-w-sm bg-[#1C1C1E] rounded-[2.5rem] p-8 border border-white/5">
+            <h3 class="text-2xl font-black mb-6">Adicionar Membro</h3>
+            <div class="relative mb-6">
+                <input id="add-member-input" placeholder="username" class="w-full bg-black p-5 pl-12 rounded-2xl text-white border border-white/10">
+                <span class="absolute left-5 top-1/2 -translate-y-1/2 text-gray-500 font-bold">@</span>
+            </div>
+            <div class="flex gap-4">
+                <button onclick="document.getElementById('add-member-modal').classList.add('hidden')" class="flex-1 py-4 text-gray-500 font-bold">Cancelar</button>
+                <button onclick="addMemberToGroup()" class="flex-1 py-4 premium-gradient text-white font-black rounded-2xl shadow-xl">Adicionar</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Modal Editar Grupo -->
+    <div id="edit-group-modal" class="fixed inset-0 z-[1200] hidden bg-black/90 backdrop-blur flex items-center justify-center p-6">
+        <div class="w-full max-w-sm bg-[#1C1C1E] rounded-[2.5rem] p-8 border border-white/5">
+            <h3 class="text-2xl font-black mb-6">Editar Grupo</h3>
+            <input id="edit-group-name" placeholder="Nome do Grupo" class="w-full bg-black p-5 rounded-2xl text-white border border-white/10 mb-4">
+            <textarea id="edit-group-desc" placeholder="Descrição" class="w-full bg-black p-5 rounded-2xl text-white border border-white/10 mb-6 resize-none" rows="3"></textarea>
+            <div class="flex gap-4">
+                <button onclick="document.getElementById('edit-group-modal').classList.add('hidden')" class="flex-1 py-4 text-gray-500 font-bold">Cancelar</button>
+                <button onclick="saveGroupSettings()" class="flex-1 py-4 premium-gradient text-white font-black rounded-2xl shadow-xl">Salvar</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Modal Criar Status -->
+    <div id="create-story-modal" class="fixed inset-0 z-[2000] hidden bg-black flex flex-col">
+        <header class="safe-pt flex items-center justify-between px-5 py-4 border-b border-white/5">
+            <button onclick="closeCreateStory()" class="text-white font-bold">Cancelar</button>
+            <h3 class="font-black text-xl">Novo Status</h3>
+            <button onclick="publishStory()" class="text-[#FF3B30] font-black">Publicar</button>
+        </header>
+        <div id="story-preview-container" class="flex-1 flex flex-col items-center justify-center p-6 relative">
+            <!-- Preview de Imagem -->
+            <img id="story-preview-img" class="hidden max-w-full max-h-full rounded-2xl object-contain">
+            
+            <!-- Preview de Texto -->
+            <div id="story-preview-text-bg" class="w-full h-full rounded-2xl flex items-center justify-center p-8 bg-[#FF3B30]">
+                <textarea id="story-text-input" class="w-full bg-transparent text-white text-3xl font-black text-center placeholder:text-white/50 resize-none" placeholder="O que você está pensando?" rows="5"></textarea>
+            </div>
+
+            <!-- Legenda para Imagem -->
+            <div id="story-caption-container" class="hidden absolute bottom-10 left-6 right-6">
+                <input id="story-caption-input" placeholder="Adicione uma legenda..." class="w-full bg-black/50 backdrop-blur-xl p-5 rounded-2xl text-white border border-white/10 text-center">
+            </div>
+            
+            <!-- Seletor de Cor para Texto -->
+            <div id="story-color-selector" class="absolute top-10 right-6 flex flex-col gap-3">
+                <div onclick="setStoryColor('#FF3B30')" class="w-8 h-8 rounded-full bg-[#FF3B30] border-2 border-white cursor-pointer"></div>
+                <div onclick="setStoryColor('#007AFF')" class="w-8 h-8 rounded-full bg-[#007AFF] border-2 border-white cursor-pointer"></div>
+                <div onclick="setStoryColor('#4CD964')" class="w-8 h-8 rounded-full bg-[#4CD964] border-2 border-white cursor-pointer"></div>
+                <div onclick="setStoryColor('#5856D6')" class="w-8 h-8 rounded-full bg-[#5856D6] border-2 border-white cursor-pointer"></div>
+                <div onclick="setStoryColor('#000000')" class="w-8 h-8 rounded-full bg-[#000000] border-2 border-white cursor-pointer"></div>
+            </div>
+        </div>
+    </div>
+
     <input type="file" id="avatar_file" hidden accept="image/*" onchange="upload('avatar', event)">
+    <input type="file" id="group_avatar_file" hidden accept="image/*" onchange="uploadGroupAvatar(event)">
     <input type="file" id="media_input" hidden accept="image/*,video/*,audio/*" onchange="sendMedia(event)">
-    <input type="file" id="story_input" hidden accept="image/*,video/*" onchange="postStory(event)">
+    <input type="file" id="story_input" hidden accept="image/*,video/*" onchange="handleStoryFile(event)">
 
     <script>
         const socket = io({ reconnection: true, reconnectionAttempts: Infinity });
@@ -451,17 +527,73 @@
             `).join('');
         }
 
-        async function postStory(ev) {
-            const file = ev.target.files[0]; if(!file) return;
-            const reader = new FileReader(); reader.readAsDataURL(file);
-            reader.onload = async () => {
-                await fetch('/stories', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ username: me.username, content: reader.result, type: file.type.split('/')[0] })
-                });
-                loadStories();
+        let currentStoryFile = null;
+        function handleStoryFile(ev) {
+            const file = ev.target.files[0];
+            if (!file) return;
+            currentStoryFile = file;
+            
+            const reader = new FileReader();
+            reader.readAsDataURL(file);
+            reader.onload = () => {
+                document.getElementById('story-preview-img').src = reader.result;
+                document.getElementById('story-preview-img').classList.remove('hidden');
+                document.getElementById('story-preview-text-bg').classList.add('hidden');
+                document.getElementById('story-caption-container').classList.remove('hidden');
+                document.getElementById('story-color-selector').classList.add('hidden');
+                document.getElementById('create-story-modal').classList.remove('hidden');
             };
+        }
+
+        function openTextStory() {
+            currentStoryFile = null;
+            document.getElementById('story-preview-img').classList.add('hidden');
+            document.getElementById('story-preview-text-bg').classList.remove('hidden');
+            document.getElementById('story-caption-container').classList.add('hidden');
+            document.getElementById('story-color-selector').classList.remove('hidden');
+            document.getElementById('story-text-input').value = '';
+            document.getElementById('create-story-modal').classList.remove('hidden');
+        }
+
+        function closeCreateStory() {
+            document.getElementById('create-story-modal').classList.add('hidden');
+            currentStoryFile = null;
+        }
+
+        function setStoryColor(color) {
+            document.getElementById('story-preview-text-bg').style.backgroundColor = color;
+        }
+
+        async function publishStory() {
+            const type = currentStoryFile ? 'image' : 'text';
+            const caption = document.getElementById('story-caption-input').value;
+            const text = document.getElementById('story-text-input').value;
+            const bgColor = document.getElementById('story-preview-text-bg').style.backgroundColor;
+            
+            let content = '';
+            if (type === 'image') {
+                content = document.getElementById('story-preview-img').src;
+            } else {
+                content = text;
+                if (!text.trim()) return alert('Digite algo para publicar!');
+            }
+
+            const res = await fetch('/stories', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ 
+                    username: me.username, 
+                    content, 
+                    type, 
+                    caption: type === 'image' ? caption : '', 
+                    bg_color: type === 'text' ? bgColor : '' 
+                })
+            });
+
+            if (res.ok) {
+                closeCreateStory();
+                loadStories();
+            }
         }
 
         let storyTimer;
@@ -469,20 +601,37 @@
             const viewer = document.getElementById('story-viewer');
             const img = document.getElementById('story-img');
             const text = document.getElementById('story-text-container');
+            const caption = document.getElementById('story-caption-display');
+            
             viewer.style.display = 'flex';
+            
             if (s.type === 'image') {
-                img.src = s.content; img.style.display = 'block'; text.style.display = 'none';
+                img.src = s.content; 
+                img.style.display = 'block'; 
+                text.style.display = 'none';
+                if (s.caption) {
+                    caption.innerText = s.caption;
+                    caption.classList.remove('hidden');
+                } else {
+                    caption.classList.add('hidden');
+                }
             } else {
-                img.style.display = 'none'; text.style.display = 'flex'; text.innerText = s.content;
+                text.innerText = s.content; 
+                text.style.display = 'flex'; 
+                img.style.display = 'none';
+                text.style.backgroundColor = s.bg_color || '#FF3B30';
+                caption.classList.add('hidden');
             }
-            document.getElementById('story-caption').innerText = s.caption || '';
             
             const progress = document.getElementById('story-progress');
-            progress.innerHTML = '<div class="story-bar"><div class="story-bar-fill" id="fill"></div></div>';
-            setTimeout(() => document.getElementById('fill').style.width = '100%', 100);
-            document.getElementById('fill').style.transition = 'width 5s linear';
+            progress.innerHTML = '<div class="story-bar"><div class="story-bar-fill"></div></div>';
+            const fill = progress.querySelector('.story-bar-fill');
+            fill.style.transition = 'width 5s linear';
+            setTimeout(() => fill.style.width = '100%', 50);
             
-            storyTimer = setTimeout(closeStory, 5000);
+            storyTimer = setTimeout(() => {
+                viewer.style.display = 'none';
+            }, 5000);
         }
 
         function closeStory() {
@@ -501,52 +650,55 @@
             const groups = await fetch('/groups/my/'+me.username).then(r=>r.json()).catch(() => []);
             
             const container = document.getElementById('tab-chats');
-            let html = '';
             
-            // Renderizar grupos primeiro
-            if (groups.length > 0) {
-                html += groups.map(g => `
-                    <div onclick="openGroupChat('${g.group_id}')" class="flex items-center gap-4 p-5 active:bg-white/5 transition-all cursor-pointer bg-[#1C1C1E]/30">
-                        <div class="relative w-16 h-16 shrink-0">
-                            <img src="${g.avatar || 'https://ui-avatars.com/api/?background=FF3B30&color=fff&name='+g.name}" class="w-full h-full rounded-full object-cover border-2 border-[#FF3B30]/30">
-                            <div class="absolute -bottom-1 -right-1 bg-[#FF3B30] rounded-full p-1">
-                                <svg class="w-3 h-3 text-white" fill="currentColor" viewBox="0 0 20 20"><path d="M13 6a3 3 0 11-6 0 3 3 0 016 0zM18 8a2 2 0 11-4 0 2 2 0 014 0zM14 15a4 4 0 00-8 0v3h8v-3zM6 8a2 2 0 11-4 0 2 2 0 014 0zM16 18v-3a5.972 5.972 0 00-.75-2.906A3.005 3.005 0 0119 15v3h-3zM4.75 12.094A5.973 5.973 0 004 15v3H1v-3a3 3 0 013.75-2.906z"/></svg>
-                            </div>
-                        </div>
-                        <div class="flex-1 min-w-0">
-                            <div class="flex justify-between items-baseline">
-                                <h3 class="font-black text-lg text-white truncate">${g.name}</h3>
-                                ${g.muted ? '<svg class="w-4 h-4 text-gray-500" fill="currentColor" viewBox="0 0 20 20"><path d="M3.707 2.293a1 1 0 00-1.414 1.414l14 14a1 1 0 001.414-1.414l-14-14zM9 4.414L6.707 6.707 9 9V4.414zM15.657 16.243L13 13.586V16a1 1 0 11-2 0v-4.586l-2-2V16a3 3 0 006 0v-.757z"/></svg>' : ''}
-                            </div>
-                            <p class="text-[13px] text-gray-500 truncate font-medium">${g.description || 'Grupo'}</p>
-                        </div>
-                    </div>
-                `).join('');
-            }
+            // Combinar e ordenar por tempo da última mensagem
+            let allChats = [
+                ...chats.map(c => ({ ...c, isGroup: false, time: new Date(c.last_time || 0).getTime() })),
+                ...groups.map(g => ({ ...g, isGroup: true, time: new Date(g.created_at || 0).getTime(), contact: g.group_id, display_name: g.name }))
+            ];
             
-            // Renderizar conversas individuais
-            if (chats.length > 0) {
-                html += chats.map(c => `
-                    <div onclick="openChat('${c.contact}')" class="flex items-center gap-4 p-5 active:bg-white/5 transition-all cursor-pointer">
-                        <div class="relative w-16 h-16 shrink-0">
-                            <img src="${c.avatar || 'https://ui-avatars.com/api/?background=1C1C1E&color=fff&name='+c.display_name}" class="w-full h-full rounded-full object-cover border border-white/5">
-                            ${c.is_online ? '<div class="absolute bottom-0.5 right-0.5 w-4 h-4 bg-green-500 rounded-full border-[3px] border-black"></div>' : ''}
-                        </div>
-                        <div class="flex-1 min-w-0">
-                            <div class="flex justify-between items-baseline">
-                                <h3 class="font-black text-lg text-white truncate">${c.display_name}</h3>
-                                <span class="text-xs font-bold text-gray-500">${formatTime(c.last_time)}</span>
-                            </div>
-                            <div class="flex justify-between items-center mt-1">
-                                <p class="text-[15px] text-gray-500 truncate font-medium">${c.type==='text'?c.last_msg:'[Mídia]'}</p>
-                                ${c.unread ? `<span class="bg-[#FF3B30] text-white text-[10px] font-black px-2 py-0.5 rounded-full">${c.unread}</span>` : ''}
-                            </div>
-                        </div>
-                    </div>
-                `).join('');
-            }
+            allChats.sort((a, b) => b.time - a.time);
             
-            container.innerHTML = html || '<div class="p-10 text-center text-gray-500">Nenhuma conversa.</div>';
+            container.innerHTML = allChats.length ? allChats.map(c => {
+                if (c.isGroup) {
+                    return `
+                        <div onclick="openGroupChat('${c.group_id}')" class="flex items-center gap-4 p-5 active:bg-white/5 transition-all cursor-pointer">
+                            <div class="relative w-16 h-16 shrink-0">
+                                <img src="${c.avatar || 'https://ui-avatars.com/api/?background=FF3B30&color=fff&name='+c.name}" class="w-full h-full rounded-full object-cover border border-white/5">
+                                <div class="absolute -bottom-1 -right-1 bg-[#FF3B30] rounded-full p-1 border-2 border-black">
+                                    <svg class="w-3 h-3 text-white" fill="currentColor" viewBox="0 0 20 20"><path d="M13 6a3 3 0 11-6 0 3 3 0 016 0zM18 8a2 2 0 11-4 0 2 2 0 014 0zM14 15a4 4 0 00-8 0v3h8v-3zM6 8a2 2 0 11-4 0 2 2 0 014 0zM16 18v-3a5.972 5.972 0 00-.75-2.906A3.005 3.005 0 0119 15v3h-3zM4.75 12.094A5.973 5.973 0 004 15v3H1v-3a3 3 0 013.75-2.906z"/></svg>
+                                </div>
+                            </div>
+                            <div class="flex-1 min-w-0">
+                                <div class="flex justify-between items-baseline">
+                                    <h3 class="font-black text-lg text-white truncate">${c.name}</h3>
+                                    <span class="text-xs font-bold text-gray-500">${formatTime(c.created_at)}</span>
+                                </div>
+                                <p class="text-[15px] text-gray-500 truncate font-medium">${c.description || 'Grupo'}</p>
+                            </div>
+                        </div>
+                    `;
+                } else {
+                    return `
+                        <div onclick="openChat('${c.contact}')" class="flex items-center gap-4 p-5 active:bg-white/5 transition-all cursor-pointer">
+                            <div class="relative w-16 h-16 shrink-0">
+                                <img src="${c.avatar || 'https://ui-avatars.com/api/?background=1C1C1E&color=fff&name='+c.display_name}" class="w-full h-full rounded-full object-cover border border-white/5">
+                                ${c.is_online ? '<div class="absolute bottom-0.5 right-0.5 w-4 h-4 bg-green-500 rounded-full border-[3px] border-black"></div>' : ''}
+                            </div>
+                            <div class="flex-1 min-w-0">
+                                <div class="flex justify-between items-baseline">
+                                    <h3 class="font-black text-lg text-white truncate">${c.display_name}</h3>
+                                    <span class="text-xs font-bold text-gray-500">${formatTime(c.last_time)}</span>
+                                </div>
+                                <div class="flex justify-between items-center mt-1">
+                                    <p class="text-[15px] text-gray-500 truncate font-medium">${c.type==='text'?c.last_msg:'[Mídia]'}</p>
+                                    ${c.unread ? `<span class="bg-[#FF3B30] text-white text-[10px] font-black px-2 py-0.5 rounded-full">${c.unread}</span>` : ''}
+                                </div>
+                            </div>
+                        </div>
+                    `;
+                }
+            }).join('') : '<div class="p-10 text-center text-gray-500">Nenhuma conversa.</div>';
         }
 
         async function openChat(u) {
@@ -615,8 +767,8 @@
             div.innerHTML = `
                 <div class="msg-bubble ${isMe ? 'msg-me' : 'msg-them'}" 
                      onpointerdown="handleMsgPressStart(event, ${m.id})" 
-                     onpointerup="handleMsgPressEnd()" 
-                     onpointercancel="handleMsgPressEnd()">
+                     onpointerup="handleMsgPressEnd(event)" 
+                     onpointercancel="handleMsgPressEnd(event)">
                     ${content}
                     ${reactionHtml}
                     <div class="flex items-center justify-end gap-1 mt-1 opacity-70 text-[9px] font-black">
@@ -779,7 +931,7 @@
 
         function handleMsgPressStart(e, id) {
             // BLOQUEIO TOTAL de comportamento padrão do navegador
-            e.preventDefault();
+            if (e.cancelable) e.preventDefault();
             e.stopPropagation();
             
             // Remover qualquer seleção existente
@@ -787,19 +939,25 @@
                 window.getSelection().removeAllRanges();
             }
             
+            // Reforçar bloqueio de seleção
+            document.onselectstart = () => false;
+            
             selectedMsgId = id;
             const bubble = e.currentTarget;
             longPressTimer = setTimeout(() => {
                 showContextMenu(e, bubble);
             }, 500);
+            
+            return false;
         }
 
         function handleMsgPressEnd(e) {
-            if (e) {
+            if (e && e.cancelable) {
                 e.preventDefault();
                 e.stopPropagation();
             }
             clearTimeout(longPressTimer);
+            document.onselectstart = null;
         }
 
         function showContextMenu(e, bubble) {
@@ -1164,11 +1322,104 @@
             msgs.forEach(m => addGroupMsg(m));
             msgContainer.scrollTop = msgContainer.scrollHeight;
         }
+
+        function showAddMemberModal() {
+            document.getElementById('add-member-modal').classList.remove('hidden');
+        }
+
+        async function addMemberToGroup() {
+            const username = document.getElementById('add-member-input').value.trim().toLowerCase();
+            if (!username) return;
+            
+            const res = await fetch(`/groups/${activeGroup}/members/add`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ username, added_by: me.username })
+            });
+            
+            if (res.ok) {
+                document.getElementById('add-member-modal').classList.add('hidden');
+                document.getElementById('add-member-input').value = '';
+                // Recarregar info do grupo
+                const groupData = await fetch(`/groups/${activeGroup}`).then(r => r.json());
+                currentGroupData = groupData;
+                viewGroupInfo();
+            } else {
+                const data = await res.json();
+                alert(data.error || 'Erro ao adicionar membro');
+            }
+        }
+
+        function showGroupSettings() {
+            document.getElementById('edit-group-name').value = currentGroupData.name;
+            document.getElementById('edit-group-desc').value = currentGroupData.description || '';
+            document.getElementById('edit-group-modal').classList.remove('hidden');
+        }
+
+        async function saveGroupSettings() {
+            const name = document.getElementById('edit-group-name').value.trim();
+            const description = document.getElementById('edit-group-desc').value.trim();
+            
+            const res = await fetch(`/groups/${activeGroup}/update`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ name, description, updated_by: me.username })
+            });
+            
+            if (res.ok) {
+                document.getElementById('edit-group-modal').classList.add('hidden');
+                // Recarregar info do grupo
+                const groupData = await fetch(`/groups/${activeGroup}`).then(r => r.json());
+                currentGroupData = groupData;
+                document.getElementById('chat_name').innerText = groupData.name;
+                viewGroupInfo();
+                loadChats();
+            }
+        }
+
+        async function uploadGroupAvatar(ev) {
+            const file = ev.target.files[0];
+            if (!file) return;
+            const reader = new FileReader();
+            reader.readAsDataURL(file);
+            reader.onload = async () => {
+                const res = await fetch(`/groups/${activeGroup}/update`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ avatar: reader.result, updated_by: me.username })
+                });
+                if (res.ok) {
+                    const groupData = await fetch(`/groups/${activeGroup}`).then(r => r.json());
+                    currentGroupData = groupData;
+                    document.getElementById('group-info-avatar').src = groupData.avatar;
+                    document.getElementById('chat_avatar').src = groupData.avatar;
+                    loadChats();
+                }
+            };
+        }
+
+        async function promoteMember(username) {
+            // Implementar se necessário, por enquanto apenas admin pode fazer tudo
+        }
+
+        async function removeMember(username) {
+            if (!confirm(`Remover @${username} do grupo?`)) return;
+            const res = await fetch(`/groups/${activeGroup}/members/remove`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ username, removed_by: me.username })
+            });
+            if (res.ok) {
+                const groupData = await fetch(`/groups/${activeGroup}`).then(r => r.json());
+                currentGroupData = groupData;
+                viewGroupInfo();
+            }
+        }
         
         function addGroupMsg(m) {
             const isMe = m.sender.toLowerCase() === me.username.toLowerCase();
             const div = document.createElement('div');
-            div.className = `flex flex-col ${isMe ? 'items-end' : 'items-start'} mb-1 msg-wrapper`;
+            div.className = `flex items-end gap-2 mb-1 msg-wrapper ${isMe ? 'flex-row-reverse' : 'flex-row'}`;
             div.id = `gmsg-${m.id}`;
             
             let content = `<p>${m.content}</p>`;
@@ -1178,16 +1429,24 @@
             const reactionHtml = m.reaction ? `<div class="msg-reaction">${m.reaction}</div>` : '';
             const pinnedHtml = m.pinned ? '<svg class="w-3 h-3 text-[#FF3B30] inline-block mr-1" fill="currentColor" viewBox="0 0 20 20"><path d="M10 2a1 1 0 011 1v1.323l3.954 1.582 1.599-.8a1 1 0 01.894 1.79l-1.233.616 1.738 5.42a1 1 0 01-.285 1.05A3.989 3.989 0 0115 15a3.989 3.989 0 01-2.667-1.019 1 1 0 01-.285-1.05l1.738-5.42-1.233-.617a1 1 0 01.894-1.788l1.599.799L11 4.323V3a1 1 0 011-1h-2zM5 8a1 1 0 011-1h1a1 1 0 010 2H6a1 1 0 01-1-1zm0 4a1 1 0 011-1h1a1 1 0 110 2H6a1 1 0 01-1-1z"/></svg>' : '';
             
+            // Buscar avatar do remetente
+            const senderData = currentGroupData.members.find(mem => mem.username === m.sender);
+            const senderAvatar = senderData ? senderData.avatar : `https://ui-avatars.com/api/?name=${m.sender}`;
+            const senderName = senderData ? senderData.display_name : m.sender;
+
             div.innerHTML = `
-                <div class="msg-bubble ${isMe ? 'msg-me' : 'msg-them'}" 
-                     onpointerdown="handleMsgPressStart(event, ${m.id})" 
-                     onpointerup="handleMsgPressEnd(event)" 
-                     onpointercancel="handleMsgPressEnd(event)">
-                    ${!isMe ? `<p class="text-xs font-black text-[#FF3B30] mb-1">${m.sender}</p>` : ''}
-                    ${pinnedHtml}${content}
-                    ${reactionHtml}
-                    <div class="flex items-center justify-end gap-1 mt-1 opacity-70 text-[9px] font-black">
-                        <span>${formatTime(m.time)}</span>
+                ${!isMe ? `<img src="${senderAvatar}" class="w-8 h-8 rounded-full object-cover mb-1 border border-white/10">` : ''}
+                <div class="flex flex-col ${isMe ? 'items-end' : 'items-start'} max-w-[80%]">
+                    <div class="msg-bubble ${isMe ? 'msg-me' : 'msg-them'}" 
+                         onpointerdown="handleMsgPressStart(event, ${m.id})" 
+                         onpointerup="handleMsgPressEnd(event)" 
+                         onpointercancel="handleMsgPressEnd(event)">
+                        ${!isMe ? `<p class="text-[11px] font-black text-[#FF3B30] mb-1">@${m.sender}</p>` : ''}
+                        ${pinnedHtml}${content}
+                        ${reactionHtml}
+                        <div class="flex items-center justify-end gap-1 mt-1 opacity-70 text-[9px] font-black">
+                            <span>${formatTime(m.time)}</span>
+                        </div>
                     </div>
                 </div>`;
             document.getElementById('msg-container').appendChild(div);
@@ -1205,23 +1464,29 @@
             document.getElementById('group-info-avatar').src = currentGroupData.avatar || `https://ui-avatars.com/api/?background=FF3B30&color=fff&name=${currentGroupData.name}`;
             document.getElementById('group-info-members-count').innerText = `${currentGroupData.members.length} membros`;
             
+            const myMember = currentGroupData.members.find(m => m.username === me.username);
+            const isAdmin = myMember && myMember.role === 'admin';
+
             const membersList = document.getElementById('group-members-list');
             membersList.innerHTML = currentGroupData.members.map(m => `
                 <div class="flex items-center gap-3 p-2">
-                    <img src="${m.avatar || 'https://ui-avatars.com/api/?name='+m.username}" class="w-10 h-10 rounded-full">
+                    <img src="${m.avatar || 'https://ui-avatars.com/api/?name='+m.username}" class="w-10 h-10 rounded-full object-cover">
                     <div class="flex-1">
                         <p class="font-bold">${m.display_name}</p>
                         <p class="text-xs text-gray-500">@${m.username}</p>
                     </div>
-                    ${m.role === 'admin' ? '<span class="text-xs font-black text-[#FF3B30]">ADMIN</span>' : ''}
+                    <div class="flex items-center gap-2">
+                        ${m.role === 'admin' ? '<span class="text-[10px] font-black text-[#FF3B30] border border-[#FF3B30] px-1 rounded">ADMIN</span>' : ''}
+                        ${isAdmin && m.username !== me.username ? `
+                            <button onclick="removeMember('${m.username}')" class="text-red-500 p-1">
+                                <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"/></svg>
+                            </button>
+                        ` : ''}
+                    </div>
                 </div>
             `).join('');
             
-            // Mostrar/ocultar botão de configurações baseado em permissão
-            const myMember = currentGroupData.members.find(m => m.username === me.username);
-            const isAdmin = myMember && myMember.role === 'admin';
             document.getElementById('group-settings-btn').style.display = isAdmin ? 'block' : 'none';
-            
             document.getElementById('group-info-modal').classList.remove('hidden');
         }
         
