@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
-    <title>Telegram 2026 Premium</title>
+    <title>WhatsApp 2026 Premium</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="/socket.io/socket.io.js"></script>
     <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
@@ -121,7 +121,7 @@
         <div class="w-24 h-24 premium-gradient rounded-[2rem] flex items-center justify-center mb-8 shadow-2xl shadow-red-500/40 pulse-red">
             <svg class="w-14 h-14" viewBox="0 0 100 100" fill="none" xmlns="http://www.w3.org/2000/svg"><path d="M 90 10 L 20 50 L 90 90 L 70 50 Z" fill="#FF3B30" stroke="#000" stroke-width="1.5"/><path d="M 70 50 L 40 70 L 50 50 Z" fill="#000" opacity="0.7"/><path d="M 90 10 L 50 40 L 70 50 Z" fill="#FFF" opacity="0.25"/></svg>
         </div>
-        <h1 class="text-4xl font-black mb-2 italic tracking-tighter">TELEGRAM <span class="text-[#FF3B30]">2026</span></h1>
+        <h1 class="text-4xl font-black mb-2 italic tracking-tighter">WHATSAPP <span class="text-[#FF3B30]">2026</span></h1>
         <p class="text-gray-500 mb-10 font-medium uppercase tracking-widest text-xs">Experience Ultra Premium</p>
         <div class="w-full max-w-xs space-y-4">
             <div class="relative">
@@ -844,6 +844,13 @@
         
         function replyToStory() {
             if (!currentStory) return;
+            
+            // Se o story for meu, não permitir responder (evita o bug de responder a si mesmo)
+            if (currentStory.username === me.username) {
+                showStoryViewers();
+                return;
+            }
+
             const message = prompt('Responder ao status:');
             if (message && message.trim()) {
                 let context = "";
@@ -851,10 +858,12 @@
                 else if (currentStory.type === 'video') context = "[Vídeo]";
                 else context = "[Imagem]";
 
+                const fullMessage = `Respondeu ao seu status ${context}: "${message.trim()}"`;
+
                 socket.emit('send_msg', { 
                     s: me.username, 
                     r: currentStory.username, 
-                    c: `Respondeu ao seu status ${context}: "${message.trim()}"`, 
+                    c: fullMessage, 
                     type: 'text' 
                 });
                 
@@ -869,11 +878,35 @@
             }
         }
 
-        function showStoryViewers() {
+        async function showStoryViewers() {
             if (!currentStory) return;
+            
+            // Se o story não for meu, não mostrar visualizadores
+            if (currentStory.username !== me.username) {
+                alert('Apenas o dono do status pode ver quem visualizou.');
+                return;
+            }
+
             const viewers = typeof currentStory.viewers === 'string' ? JSON.parse(currentStory.viewers) : currentStory.viewers;
-            if (viewers.length === 0) return alert('Ninguém viu ainda.');
-            alert('Visualizado por: \n' + viewers.join('\n'));
+            if (!viewers || viewers.length === 0) return alert('Ninguém viu ainda.');
+            
+            // Buscar nomes de exibição dos visualizadores
+            const viewerNames = [];
+            for (const v of viewers) {
+                try {
+                    const res = await fetch('/user/' + v);
+                    if (res.ok) {
+                        const u = await res.json();
+                        viewerNames.push(`${u.display_name} (@${v})`);
+                    } else {
+                        viewerNames.push(`@${v}`);
+                    }
+                } catch (e) {
+                    viewerNames.push(`@${v}`);
+                }
+            }
+            
+            alert('Visualizado por: \n' + viewerNames.join('\n'));
         }
 
         function closeStory() {
@@ -956,8 +989,10 @@
                             <svg class="w-8 h-8 text-[#FF3B30]" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path d="M5 4h14a2 2 0 012 2v12a2 2 0 01-2 2H5a2 2 0 01-2-2V6a2 2 0 012-2zm0 5h14M5 14h14" stroke-width="2"/></svg>
                         </div>
                         <div class="flex-1">
-                            <h3 class="font-black text-lg text-white">Arquivados</h3>
-                            <p class="text-xs font-bold text-gray-500">${archivedChats.length} conversas</p>
+                            <div class="flex justify-between items-center">
+                                <h3 class="font-black text-lg text-white">Arquivados</h3>
+                                <span class="text-[#FF3B30] text-xs font-black">${archivedChats.length}</span>
+                            </div>
                         </div>
                     </div>
                 `;
@@ -965,7 +1000,18 @@
             
             html += activeChats.length ? activeChats.map(renderChat).join('') : '<div class="p-10 text-center text-gray-500 font-bold">Nenhuma conversa ativa</div>';
             chatContainer.innerHTML = html;
-            archivedContainer.innerHTML = archivedChats.length ? archivedChats.map(renderChat).join('') : '<div class="p-10 text-center text-gray-500 font-bold">Nenhuma conversa arquivada</div>';
+            
+            // Na aba de arquivados, mostrar o botão de voltar para conversas
+            let archivedHtml = `
+                <div onclick="switchTab('chats')" class="flex items-center gap-4 p-5 active:bg-white/5 transition-all cursor-pointer border-b border-white/5">
+                    <div class="w-10 h-10 flex items-center justify-center">
+                        <svg class="w-6 h-6 text-[#FF3B30]" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path d="M15 19l-7-7 7-7" stroke-width="2"/></svg>
+                    </div>
+                    <h3 class="font-black text-lg text-white">Conversas Arquivadas</h3>
+                </div>
+            `;
+            archivedHtml += archivedChats.length ? archivedChats.map(renderChat).join('') : '<div class="p-10 text-center text-gray-500 font-bold">Nenhuma conversa arquivada</div>';
+            archivedContainer.innerHTML = archivedHtml;
         }
 
         let chatPressTimer;
@@ -1019,29 +1065,38 @@
             const overlay = document.getElementById('context-overlay');
             const container = document.getElementById('context-menu-container');
             const menu = container.querySelector('.context-menu');
+            const reactionsBar = container.querySelector('.reactions-bar');
             
-            // Hide reactions for chat context menu
-            container.querySelector('.reactions-bar').style.display = 'none';
-            
-            menu.innerHTML = items.map(item => `
-                <div class="context-item ${item.destructive ? 'destructive' : ''}" onclick="${item.action}">
-                    ${item.text}
-                    <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path d="${item.icon}" stroke-width="2"/></svg>
-                </div>
-            `).join('');
+            // Se items for nulo, estamos mostrando o menu de MENSAGEM (com reações)
+            // Se items existir, estamos mostrando o menu de CHAT (sem reações)
+            if (items) {
+                if (reactionsBar) reactionsBar.style.display = 'none';
+                menu.innerHTML = items.map(item => `
+                    <div class="context-item ${item.destructive ? 'destructive' : ''}" onclick="${item.action}">
+                        ${item.text}
+                        <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path d="${item.icon}" stroke-width="2"/></svg>
+                    </div>
+                `).join('');
+                
+                const menuWidth = 250;
+                const menuHeight = items.length * 50;
+                let posX = x;
+                let posY = y;
+                if (x + menuWidth > window.innerWidth) posX = window.innerWidth - menuWidth - 20;
+                if (y + menuHeight > window.innerHeight) posY = window.innerHeight - menuHeight - 20;
+                container.style.left = posX + 'px';
+                container.style.top = posY + 'px';
+            } else {
+                // Menu de Mensagem (Reações + Opções padrão)
+                if (reactionsBar) reactionsBar.style.display = 'flex';
+                menu.innerHTML = `
+                    <div class="context-item" onclick="copyMsg()">Copiar <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path d="M8 5H6a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2v-1M8 5a2 2 0 002 2h2a2 2 0 002-2M8 5a2 2 0 012-2h2a2 2 0 012 2m0 0h2a2 2 0 012 2v3m2 4H10m0 0l3-3m-3 3l3 3" stroke-width="2"/></svg></div>
+                    <div class="context-item destructive" onclick="deleteMsg()">Apagar <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" stroke-width="2"/></svg></div>
+                `;
+                // Posição já é calculada na chamada de showMsgContextMenu
+            }
             
             overlay.classList.remove('hidden');
-            const menuWidth = 250;
-            const menuHeight = items.length * 50;
-            
-            let posX = x;
-            let posY = y;
-            
-            if (x + menuWidth > window.innerWidth) posX = window.innerWidth - menuWidth - 20;
-            if (y + menuHeight > window.innerHeight) posY = window.innerHeight - menuHeight - 20;
-            
-            container.style.left = posX + 'px';
-            container.style.top = posY + 'px';
         }
 
         async function openChat(u) {
@@ -1230,7 +1285,7 @@
             const pauseIcon = bubble.querySelector('.pause-icon');
             const btn = bubble.querySelector('.audio-play-btn');
 
-            if (audio.paused) {
+            if (audio.paused || audio.ended) {
                 // Parar outros áudios
                 document.querySelectorAll('audio').forEach(a => {
                     if (a !== audio) {
@@ -1247,17 +1302,27 @@
                     }
                 });
                 
-                // Forçar reset se necessário e dar play
-                audio.play().then(() => {
-                    if (playIcon) playIcon.classList.add('hidden');
-                    if (pauseIcon) pauseIcon.classList.remove('hidden');
-                    if (btn) btn.classList.add('playing');
-                }).catch(err => {
-                    console.error('Erro ao reproduzir áudio:', err);
-                    // Fallback: tentar carregar e tocar de novo
-                    audio.load();
-                    audio.play();
-                });
+                // Se o áudio terminou, recomeçar do zero
+                if (audio.ended) audio.currentTime = 0;
+
+                // Tentar tocar
+                const playPromise = audio.play();
+                if (playPromise !== undefined) {
+                    playPromise.then(() => {
+                        if (playIcon) playIcon.classList.add('hidden');
+                        if (pauseIcon) pauseIcon.classList.remove('hidden');
+                        if (btn) btn.classList.add('playing');
+                    }).catch(err => {
+                        console.error('Erro ao reproduzir áudio:', err);
+                        // Fallback: recarregar e tentar novamente
+                        audio.load();
+                        audio.play().then(() => {
+                            if (playIcon) playIcon.classList.add('hidden');
+                            if (pauseIcon) pauseIcon.classList.remove('hidden');
+                            if (btn) btn.classList.add('playing');
+                        });
+                    });
+                }
             } else {
                 audio.pause();
                 if (playIcon) playIcon.classList.remove('hidden');
@@ -1302,7 +1367,7 @@
             selectedMsgId = id;
             const bubble = e.currentTarget;
             longPressTimer = setTimeout(() => {
-                showContextMenu(e, bubble);
+                showMsgContextMenu(e, bubble);
             }, 500);
             
             return false;
@@ -1317,20 +1382,19 @@
             document.onselectstart = null;
         }
 
-        function showContextMenu(e, bubble) {
-            const overlay = document.getElementById('context-overlay');
-            const menu = document.getElementById('context-menu-container');
-            overlay.classList.remove('hidden');
-            
+        function showMsgContextMenu(e, bubble) {
+            const container = document.getElementById('context-menu-container');
             const rect = bubble.getBoundingClientRect();
-            let top = rect.top - 120;
+            let top = rect.top - 150;
             if (top < 20) top = rect.bottom + 20;
             
-            menu.style.top = `${top}px`;
-            menu.style.left = `${Math.max(20, Math.min(window.innerWidth - 270, rect.left))}px`;
+            container.style.top = `${top}px`;
+            container.style.left = `${Math.max(20, Math.min(window.innerWidth - 270, rect.left))}px`;
             
             bubble.style.transform = 'scale(1.05)';
             window.activeBubble = bubble;
+            
+            showContextMenu(null, null, null); // Chama a versão unificada para mensagens
         }
 
         function closeContextMenu() {
