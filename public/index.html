@@ -51,14 +51,23 @@
         .reaction-btn:active { transform: scale(1.4); }
         .msg-reaction { position: absolute; bottom: -10px; right: 10px; background: #1C1C1E; border: 1px solid #2C2C2E; border-radius: 10px; padding: 2px 6px; font-size: 12px; z-index: 10; }
         .msg-me .msg-reaction { right: auto; left: 10px; }
+        
+        /* Context Menu Styles */
+        .context-item { display: flex; items-center; justify-content: space-between; padding: 12px 16px; cursor: pointer; transition: all 0.2s; font-weight: 600; font-size: 14px; }
+        .context-item:active { background: rgba(255,255,255,0.1); }
+        .context-item.destructive { color: #FF3B30; }
+        .context-item svg { width: 18px; height: 18px; opacity: 0.6; }
+        .context-item.destructive svg { color: #FF3B30; opacity: 1; }
 
         /* Stories Styles */
         .story-circle { width: 64px; height: 64px; border-radius: 50%; padding: 2px; border: 2px solid #FF3B30; flex-shrink: 0; cursor: pointer; }
         .story-circle img { width: 100%; height: 100%; border-radius: 50%; object-cover: cover; border: 2px solid #000; }
         .story-viewer { position: fixed; inset: 0; z-index: 3000; background: #000; display: none; flex-direction: column; }
-        .story-progress { display: flex; gap: 4px; padding: 10px; position: absolute; top: 0; width: 100%; }
+        .story-progress { display: flex; gap: 4px; padding: 10px; position: absolute; top: 0; width: 100%; z-index: 3010; }
         .story-bar { height: 2px; background: rgba(255,255,255,0.3); flex: 1; border-radius: 2px; overflow: hidden; }
         .story-bar-fill { height: 100%; background: #fff; width: 0%; }
+        #story-img { width: 100%; height: 100%; object-fit: contain; }
+        .story-content-wrapper { flex: 1; display: flex; align-items: center; justify-content: center; position: relative; width: 100%; height: 100%; }
 
         /* Call Overlay */
         #call-overlay { position: fixed; inset: 0; z-index: 4000; background: #1C1C1E; display: none; flex-direction: column; align-items: center; justify-content: space-around; padding: 40px; }
@@ -162,6 +171,17 @@
         <div class="flex-1 overflow-y-auto no-scrollbar">
             <div id="tab-chats" class="divide-y divide-white/5"></div>
             
+            <!-- Archived Tab -->
+            <div id="tab-archived" class="hidden divide-y divide-white/5">
+                <header class="safe-pt bg-[#161616]/80 bg-blur border-b border-white/5 flex items-center px-5 py-3 shrink-0">
+                    <button onclick="switchTab('chats')" class="text-[#FF3B30] font-semibold text-lg">
+                        <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path d="M15 19l-7-7 7-7" stroke-width="3"/></svg>
+                    </button>
+                    <h1 class="font-bold text-xl flex-1 text-center mr-6">Arquivados</h1>
+                </header>
+                <div id="archived-list" class="divide-y divide-white/5"></div>
+            </div>
+
             <!-- Settings Tab -->
             <div id="tab-settings" class="hidden p-6 space-y-8">
                 <div class="flex flex-col items-center gap-4">
@@ -187,10 +207,14 @@
             </div>
         </div>
 
-        <nav class="safe-pb bg-[#161616]/90 bg-blur border-t border-white/5 flex justify-around pt-3 shrink-0">
+        <nav class="safe-pb bg-[#161616]/80 bg-blur border-t border-white/5 flex justify-around py-2 shrink-0">
             <button onclick="switchTab('chats')" id="btn-chats" class="flex flex-col items-center gap-1 w-20 text-[#FF3B30]">
                 <svg class="w-7 h-7" fill="currentColor" viewBox="0 0 24 24"><path d="M20 2H4c-1.1 0-2 .9-2 2v18l4-4h14c1.1 0 2-.9 2-2V4c0-1.1-.9-2-2-2z"/></svg>
                 <span class="text-[10px] font-black uppercase">Chats</span>
+            </button>
+            <button onclick="switchTab('archived')" id="btn-archived" class="flex flex-col items-center gap-1 w-20 text-gray-600">
+                <svg class="w-7 h-7" fill="currentColor" viewBox="0 0 24 24"><path d="M5 4h14a2 2 0 012 2v12a2 2 0 01-2 2H5a2 2 0 01-2-2V6a2 2 0 012-2zm0 5h14M5 14h14"/></svg>
+                <span class="text-[10px] font-black uppercase">Arquivados</span>
             </button>
             <button onclick="switchTab('settings')" id="btn-settings" class="flex flex-col items-center gap-1 w-20 text-gray-600">
                 <svg class="w-7 h-7" fill="currentColor" viewBox="0 0 24 24"><path d="M12 12c2.21 0 4-1.79 4-4s-1.79-4-4-4-4 1.79-4 4 1.79 4 4 4zm0 2c-2.67 0-8 1.34-8 4v2h16v-2c0-2.66-5.33-4-8-4z"/></svg>
@@ -246,18 +270,34 @@
     <!-- Story Viewer -->
     <div id="story-viewer" class="story-viewer">
         <div class="story-progress" id="story-progress"></div>
-        <div class="flex-1 flex items-center justify-center relative" onclick="closeStory()">
+        
+        <header class="absolute top-12 left-0 right-0 px-4 flex items-center gap-3 z-[3020]">
+            <button onclick="closeStory()" class="text-white p-2">
+                <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path d="M15 19l-7-7 7-7" stroke-width="3"/></svg>
+            </button>
+            <img id="story-viewer-avatar" class="w-10 h-10 rounded-full border border-white/20">
+            <div class="flex flex-col">
+                <span id="story-viewer-name" class="text-white font-bold text-sm"></span>
+                <span id="story-viewer-time" class="text-white/60 text-xs"></span>
+            </div>
+        </header>
+
+        <div class="story-content-wrapper" onclick="handleStoryClick(event)">
             <img id="story-img" class="max-w-full max-h-full object-contain">
             <div id="story-text-container" class="absolute inset-0 flex items-center justify-center p-10 text-center text-3xl font-bold"></div>
-            <div id="story-caption-display" class="absolute bottom-10 left-0 right-0 p-6 text-center bg-black/40 backdrop-blur-md text-white font-bold hidden"></div>
+            <div id="story-caption-display" class="absolute bottom-24 left-0 right-0 p-6 text-center bg-black/20 text-white font-medium"></div>
         </div>
-        <div class="absolute bottom-10 left-0 right-0 flex justify-center gap-6 px-6">
-            <button onclick="event.stopPropagation(); likeStory()" class="bg-[#FF3B30] text-white p-4 rounded-full shadow-xl active:scale-90 transition-all">
-                <svg class="w-6 h-6" fill="currentColor" viewBox="0 0 20 20"><path d="M3.172 5.172a4 4 0 015.656 0L10 6.343l1.172-1.171a4 4 0 115.656 5.656L10 17.657l-6.828-6.829a4 4 0 010-5.656z"/></svg>
-            </button>
-            <button onclick="event.stopPropagation(); replyToStory()" class="bg-[#1C1C1E] text-white p-4 rounded-full shadow-xl active:scale-90 transition-all border border-white/10">
-                <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="2"><path d="M3 10h10a8 8 0 018 8v2M3 10l6 6m-6-6l6-6"/></svg>
-            </button>
+
+        <div class="absolute bottom-8 left-0 right-0 flex flex-col items-center gap-4 px-6 z-[3020]">
+            <div class="flex gap-6">
+                <button onclick="event.stopPropagation(); likeStory()" id="btn-like-story" class="bg-white/10 backdrop-blur-md text-white p-4 rounded-full active:scale-90 transition-all">
+                    <svg class="w-6 h-6" fill="none" id="like-icon-svg" stroke="currentColor" viewBox="0 0 24 24"><path d="M4.318 6.318a4.5 4.5 0 000 6.364L12 20.364l7.682-7.682a4.5 4.5 0 00-6.364-6.364L12 7.636l-1.318-1.318a4.5 4.5 0 00-6.364 0z" stroke-width="2"/></svg>
+                </button>
+                <button onclick="event.stopPropagation(); replyToStory()" class="bg-white/10 backdrop-blur-md text-white p-4 rounded-full active:scale-90 transition-all">
+                    <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path d="M3 10h10a8 8 0 018 8v2M3 10l6 6m-6-6l6-6" stroke-width="2"/></svg>
+                </button>
+            </div>
+            <div class="text-white/40 text-[10px] font-bold uppercase tracking-widest">Responder</div>
         </div>
     </div>
 
@@ -680,7 +720,23 @@
             const text = document.getElementById('story-text-container');
             const caption = document.getElementById('story-caption-display');
             
+            // Update Header
+            document.getElementById('story-viewer-avatar').src = s.avatar || `https://ui-avatars.com/api/?name=${s.username}`;
+            document.getElementById('story-viewer-name').innerText = s.display_name || s.username;
+            document.getElementById('story-viewer-time').innerText = formatSeen(s.time);
+            
+            // Update Like Icon
+            const likeIcon = document.getElementById('like-icon-svg');
+            if (s.likes.includes(me.username)) {
+                likeIcon.setAttribute('fill', 'currentColor');
+                likeIcon.style.color = '#FF3B30';
+            } else {
+                likeIcon.setAttribute('fill', 'none');
+                likeIcon.style.color = 'white';
+            }
+            
             viewer.style.display = 'flex';
+            clearTimeout(storyTimer);
             
             // Registrar visualização
             if (s.username !== me.username && !s.viewers.includes(me.username)) {
@@ -691,17 +747,26 @@
                 });
             }
             
+            let duration = 5000; // Default 5s
+            
             if (s.type === 'image' || s.type === 'video') {
-                // Converter img para video se necessário
-                if (s.type === 'video' && img.tagName !== 'VIDEO') {
-                    img.outerHTML = '<video id="story-img" class="max-h-[70vh] max-w-full object-contain rounded-2xl" controls autoplay></video>';
+                if (s.type === 'video') {
+                    if (img.tagName !== 'VIDEO') {
+                        img.outerHTML = '<video id="story-img" class="max-h-full max-w-full object-contain" autoplay playsinline></video>';
+                    }
                     const videoEl = document.getElementById('story-img');
                     videoEl.src = s.content;
-                } else if (s.type === 'image' && img.tagName !== 'IMG') {
-                    img.outerHTML = '<img id="story-img" class="max-h-[70vh] max-w-full object-contain rounded-2xl">';
-                    document.getElementById('story-img').src = s.content;
+                    videoEl.onloadedmetadata = () => {
+                        duration = Math.max(videoEl.duration * 1000, 5000);
+                        startStoryTimer(duration);
+                    };
+                    videoEl.onended = () => nextStory();
                 } else {
-                    img.src = s.content;
+                    if (img.tagName !== 'IMG') {
+                        img.outerHTML = '<img id="story-img" class="max-h-full max-w-full object-contain">';
+                    }
+                    document.getElementById('story-img').src = s.content;
+                    startStoryTimer(duration);
                 }
                 
                 document.getElementById('story-img').style.display = 'block'; 
@@ -718,17 +783,30 @@
                 document.getElementById('story-img').style.display = 'none';
                 text.style.backgroundColor = s.bg_color || '#FF3B30';
                 caption.classList.add('hidden');
+                startStoryTimer(duration);
             }
-            
+        }
+
+        function handleStoryClick(e) {
+            const width = window.innerWidth;
+            if (e.clientX < width / 3) {
+                previousStory();
+            } else {
+                nextStory();
+            }
+        }
+
+        function startStoryTimer(duration) {
             const progress = document.getElementById('story-progress');
             progress.innerHTML = '<div class="story-bar"><div class="story-bar-fill"></div></div>';
             const fill = progress.querySelector('.story-bar-fill');
-            fill.style.transition = 'width 5s linear';
+            fill.style.transition = `width ${duration}ms linear`;
             setTimeout(() => fill.style.width = '100%', 50);
             
+            clearTimeout(storyTimer);
             storyTimer = setTimeout(() => {
                 nextStory();
-            }, 5000);
+            }, duration);
         }
         
         async function likeStory() {
@@ -771,68 +849,135 @@
         function closeStory() {
             document.getElementById('story-viewer').style.display = 'none';
             clearTimeout(storyTimer);
+            const media = document.getElementById('story-img');
+            if (media && media.tagName === 'VIDEO') {
+                media.pause();
+                media.src = "";
+                media.load();
+            }
         }
 
         // --- CHATS & MESSAGES ---
         async function loadChats() {
             if (!me) return;
-            
-            // Carregar conversas individuais
             const chats = await fetch('/chats/'+me.username).then(r=>r.json());
-            
-            // Carregar grupos
             const groups = await fetch('/groups/my/'+me.username).then(r=>r.json()).catch(() => []);
             
-            const container = document.getElementById('tab-chats');
+            const chatContainer = document.getElementById('tab-chats');
+            const archivedContainer = document.getElementById('archived-list');
             
-            // Combinar e ordenar por tempo da última mensagem
             let allChats = [
                 ...chats.map(c => ({ ...c, isGroup: false, time: new Date(c.last_time || 0).getTime() })),
                 ...groups.map(g => ({ ...g, isGroup: true, time: new Date(g.created_at || 0).getTime(), contact: g.group_id, display_name: g.name }))
             ];
             
-            allChats.sort((a, b) => b.time - a.time);
+            // Sort: Pinned first, then by time
+            allChats.sort((a, b) => {
+                if (a.is_pinned !== b.is_pinned) return b.is_pinned - a.is_pinned;
+                return b.time - a.time;
+            });
             
-            container.innerHTML = allChats.length ? allChats.map(c => {
-                if (c.isGroup) {
-                    return `
-                        <div onclick="openGroupChat('${c.group_id}')" class="flex items-center gap-4 p-5 active:bg-white/5 transition-all cursor-pointer">
-                            <div class="relative w-16 h-16 shrink-0">
-                                <img src="${c.avatar || 'https://ui-avatars.com/api/?background=FF3B30&color=fff&name='+c.name}" class="w-full h-full rounded-full object-cover border border-white/5">
-                                <div class="absolute -bottom-1 -right-1 bg-[#FF3B30] rounded-full p-1 border-2 border-black">
-                                    <svg class="w-3 h-3 text-white" fill="currentColor" viewBox="0 0 20 20"><path d="M13 6a3 3 0 11-6 0 3 3 0 016 0zM18 8a2 2 0 11-4 0 2 2 0 014 0zM14 15a4 4 0 00-8 0v3h8v-3zM6 8a2 2 0 11-4 0 2 2 0 014 0zM16 18v-3a5.972 5.972 0 00-.75-2.906A3.005 3.005 0 0119 15v3h-3zM4.75 12.094A5.973 5.973 0 004 15v3H1v-3a3 3 0 013.75-2.906z"/></svg>
-                                </div>
+            const renderChat = (c) => {
+                const isArchived = c.is_archived === 1;
+                const isPinned = c.is_pinned === 1;
+                const avatar = c.isGroup ? (c.avatar || `https://ui-avatars.com/api/?background=FF3B30&color=fff&name=${c.name}`) : (c.avatar || `https://ui-avatars.com/api/?background=1C1C1E&color=fff&name=${c.display_name}`);
+                const name = c.isGroup ? c.name : c.display_name;
+                const time = c.isGroup ? formatTime(c.created_at) : formatTime(c.last_time);
+                const subtext = c.isGroup ? (c.description || 'Grupo') : (c.type==='text'?c.last_msg:'[Mídia]');
+                
+                return `
+                    <div oncontextmenu="handleChatContextMenu(event, '${c.contact}', ${c.isGroup}, ${isArchived}, ${isPinned})" 
+                         onclick="${c.isGroup ? `openGroupChat('${c.contact}')` : `openChat('${c.contact}')`}" 
+                         class="flex items-center gap-4 p-5 active:bg-white/5 transition-all cursor-pointer relative">
+                        <div class="relative w-16 h-16 shrink-0">
+                            <img src="${avatar}" class="w-full h-full rounded-full object-cover border border-white/5">
+                            ${!c.isGroup && c.is_online ? '<div class="absolute bottom-0.5 right-0.5 w-4 h-4 bg-green-500 rounded-full border-[3px] border-black"></div>' : ''}
+                            ${c.isGroup ? '<div class="absolute -bottom-1 -right-1 bg-[#FF3B30] rounded-full p-1 border-2 border-black"><svg class="w-3 h-3 text-white" fill="currentColor" viewBox="0 0 20 20"><path d="M13 6a3 3 0 11-6 0 3 3 0 016 0zM18 8a2 2 0 11-4 0 2 2 0 014 0zM14 15a4 4 0 00-8 0v3h8v-3zM6 8a2 2 0 11-4 0 2 2 0 014 0zM16 18v-3a5.972 5.972 0 00-.75-2.906A3.005 3.005 0 0119 15v3h-3zM4.75 12.094A5.973 5.973 0 004 15v3H1v-3a3 3 0 013.75-2.906z"/></svg></div>' : ''}
+                        </div>
+                        <div class="flex-1 min-w-0">
+                            <div class="flex justify-between items-baseline">
+                                <h3 class="font-black text-lg text-white truncate flex items-center gap-2">
+                                    ${isPinned ? '<svg class="w-3 h-3 text-[#FF3B30]" fill="currentColor" viewBox="0 0 20 20"><path d="M10 2a1 1 0 011 1v1.323l3.954 1.582 1.599-.8a1 1 0 01.894 1.79l-1.233.616 1.738 5.42a1 1 0 01-.285 1.05A3.989 3.989 0 0115 15a3.989 3.989 0 01-2.667-1.019 1 1 0 01-.285-1.05l1.738-5.42-1.233-.617a1 1 0 01.894-1.788l1.599.799L11 4.323V3a1 1 0 011-1h-2zM5 8a1 1 0 011-1h1a1 1 0 010 2H6a1 1 0 01-1-1zm0 4a1 1 0 011-1h1a1 1 0 110 2H6a1 1 0 01-1-1z"/></svg>' : ''}
+                                    ${name}
+                                </h3>
+                                <span class="text-xs font-bold text-gray-500">${time}</span>
                             </div>
-                            <div class="flex-1 min-w-0">
-                                <div class="flex justify-between items-baseline">
-                                    <h3 class="font-black text-lg text-white truncate">${c.name}</h3>
-                                    <span class="text-xs font-bold text-gray-500">${formatTime(c.created_at)}</span>
-                                </div>
-                                <p class="text-[15px] text-gray-500 truncate font-medium">${c.description || 'Grupo'}</p>
+                            <div class="flex justify-between items-center mt-1">
+                                <p class="text-[15px] text-gray-500 truncate font-medium">
+                                    ${subtext}
+                                </p>
+                                ${!c.isGroup && c.unread ? `<span class="bg-[#FF3B30] text-white text-[10px] font-black px-2 py-0.5 rounded-full">${c.unread}</span>` : ''}
                             </div>
                         </div>
-                    `;
-                } else {
-                    return `
-                        <div onclick="openChat('${c.contact}')" class="flex items-center gap-4 p-5 active:bg-white/5 transition-all cursor-pointer">
-                            <div class="relative w-16 h-16 shrink-0">
-                                <img src="${c.avatar || 'https://ui-avatars.com/api/?background=1C1C1E&color=fff&name='+c.display_name}" class="w-full h-full rounded-full object-cover border border-white/5">
-                                ${c.is_online ? '<div class="absolute bottom-0.5 right-0.5 w-4 h-4 bg-green-500 rounded-full border-[3px] border-black"></div>' : ''}
-                            </div>
-                            <div class="flex-1 min-w-0">
-                                <div class="flex justify-between items-baseline">
-                                    <h3 class="font-black text-lg text-white truncate">${c.display_name}</h3>
-                                    <span class="text-xs font-bold text-gray-500">${formatTime(c.last_time)}</span>
-                                </div>
-                                <div class="flex justify-between items-center mt-1">
-                                    <p class="text-[15px] text-gray-500 truncate font-medium">${c.type==='text'?c.last_msg:'[Mídia]'}</p>
-                                    ${c.unread ? `<span class="bg-[#FF3B30] text-white text-[10px] font-black px-2 py-0.5 rounded-full">${c.unread}</span>` : ''}
-                                </div>
-                            </div>
-                        </div>
-                    `;
-                }
-            }).join('') : '<div class="p-10 text-center text-gray-500">Nenhuma conversa.</div>';
+                    </div>
+                `;
+            };
+            
+            const activeChats = allChats.filter(c => c.is_archived !== 1);
+            const archivedChats = allChats.filter(c => c.is_archived === 1);
+            
+            chatContainer.innerHTML = activeChats.length ? activeChats.map(renderChat).join('') : '<div class="p-10 text-center text-gray-500 font-bold">Nenhuma conversa ativa</div>';
+            archivedContainer.innerHTML = archivedChats.length ? archivedChats.map(renderChat).join('') : '<div class="p-10 text-center text-gray-500 font-bold">Nenhuma conversa arquivada</div>';
+        }
+
+        function handleChatContextMenu(e, contactId, isGroup, isArchived, isPinned) {
+            e.preventDefault();
+            const menu = [
+                { text: isPinned ? 'Desafixar' : 'Fixar', icon: 'M10 2a1 1 0 011 1v1.323l3.954 1.582 1.599-.8a1 1 0 01.894 1.79l-1.233.616 1.738 5.42a1 1 0 01-.285 1.05A3.989 3.989 0 0115 15a3.989 3.989 0 01-2.667-1.019 1 1 0 01-.285-1.05l1.738-5.42-1.233-.617a1 1 0 01.894-1.788l1.599.799L11 4.323V3a1 1 0 011-1h-2zM5 8a1 1 0 011-1h1a1 1 0 010 2H6a1 1 0 01-1-1zm0 4a1 1 0 011-1h1a1 1 0 110 2H6a1 1 0 01-1-1z', action: `toggleChatSetting('${contactId}', 'is_pinned', ${!isPinned})` },
+                { text: isArchived ? 'Desarquivar' : 'Arquivar', icon: 'M5 4h14a2 2 0 012 2v12a2 2 0 01-2 2H5a2 2 0 01-2-2V6a2 2 0 012-2zm0 5h14M5 14h14', action: `toggleChatSetting('${contactId}', 'is_archived', ${!isArchived})` },
+                { text: 'Apagar Conversa', icon: 'M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16', destructive: true, action: `deleteChat('${contactId}')` }
+            ];
+            showContextMenu(e.clientX, e.clientY, menu);
+        }
+
+        async function toggleChatSetting(contactId, setting, value) {
+            await fetch('/chats/settings', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ username: me.username, contact_id: contactId, [setting]: value ? 1 : 0 })
+            });
+            closeContextMenu();
+            loadChats();
+        }
+
+        async function deleteChat(contactId) {
+            if (!confirm('Deseja realmente apagar toda a conversa?')) return;
+            await fetch('/chats/delete', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ username: me.username, contact_id: contactId })
+            });
+            closeContextMenu();
+            loadChats();
+        }
+
+        function showContextMenu(x, y, items) {
+            const overlay = document.getElementById('context-overlay');
+            const container = document.getElementById('context-menu-container');
+            const menu = container.querySelector('.context-menu');
+            
+            // Hide reactions for chat context menu
+            container.querySelector('.reactions-bar').style.display = 'none';
+            
+            menu.innerHTML = items.map(item => `
+                <div class="context-item ${item.destructive ? 'destructive' : ''}" onclick="${item.action}">
+                    ${item.text}
+                    <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path d="${item.icon}" stroke-width="2"/></svg>
+                </div>
+            `).join('');
+            
+            overlay.classList.remove('hidden');
+            const menuWidth = 250;
+            const menuHeight = items.length * 50;
+            
+            let posX = x;
+            let posY = y;
+            
+            if (x + menuWidth > window.innerWidth) posX = window.innerWidth - menuWidth - 20;
+            if (y + menuHeight > window.innerHeight) posY = window.innerHeight - menuHeight - 20;
+            
+            container.style.left = posX + 'px';
+            container.style.top = posY + 'px';
         }
 
         async function openChat(u) {
@@ -918,7 +1063,7 @@
             div.id = `msg-${m.id}`;
             let content = `<p>${m.c}</p>`;
             if(m.type === 'image') content = `<img src="${m.c}" class="rounded-xl max-w-full border border-white/5">`;
-            if(m.type === 'video') content = `<video src="${m.c}" class="rounded-xl max-w-full border border-white/5" controls preload="metadata" style="max-height: 400px;"></video>`;
+            if(m.type === 'video') content = `<div class="relative rounded-xl overflow-hidden bg-black" style="max-height: 400px;"><video src="${m.c}" class="w-full h-auto block" controls preload="metadata" playsinline></video></div>`;
             if(m.type === 'audio') content = createAudioBubble(m.c, m.id);
             if(m.type === 'call') content = `<div class="flex items-center gap-2 py-1"><svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path d="M3 5a2 2 0 012-2h3.28a1 1 0 01.948.684l1.498 4.493a1 1 0 01-.502 1.21l-2.257 1.13a11.042 11.042 0 005.516 5.516l1.13-2.257a1 1 0 011.21-.502l4.493 1.498a1 1 0 01.684.949V19a2 2 0 01-2 2h-1C9.716 21 3 14.284 3 6V5z"/></svg> <span class="font-bold">${m.c}</span></div>`;
             
@@ -1290,7 +1435,13 @@
                 window.activeUserData.last_seen = d.last_seen;
             }
         });
-        socket.on('connect', () => { if(me) socket.emit('join', me.username); });
+        socket.on('connect', () => { 
+            if(me) {
+                socket.emit('join', me.username); 
+                loadChats();
+                loadStories();
+            }
+        });
 
         // Função para atualizar status do usuário ativo
         async function refreshActiveUserStatus() {
@@ -1364,18 +1515,25 @@
         function formatTime(t) { return t ? new Date(t).toLocaleTimeString([], {hour:'2-digit', minute:'2-digit'}) : ''; }
         function formatSeen(t) { if(!t) return 'há algum tempo'; const diff = (new Date() - new Date(t)) / 1000; if(diff < 60) return 'agora'; if(diff < 3600) return Math.floor(diff/60)+'m atrás'; return formatTime(t); }
         function switchTab(t) {
-            ['chats','settings'].forEach(x => { document.getElementById('tab-'+x).classList.add('hidden'); document.getElementById('btn-'+x).classList.replace('text-[#FF3B30]', 'text-gray-600'); });
-            document.getElementById('tab-'+t).classList.remove('hidden'); document.getElementById('btn-'+t).classList.replace('text-gray-600', 'text-[#FF3B30]');
+            ['chats', 'settings', 'archived'].forEach(x => { 
+                const tab = document.getElementById('tab-'+x);
+                const btn = document.getElementById('btn-'+x);
+                if (tab) tab.classList.add('hidden');
+                if (btn) btn.classList.replace('text-[#FF3B30]', 'text-gray-600'); 
+            });
+            const activeTab = document.getElementById('tab-'+t);
+            const activeBtn = document.getElementById('btn-'+t);
+            if (activeTab) activeTab.classList.remove('hidden');
+            if (activeBtn) activeBtn.classList.replace('text-gray-600', 'text-[#FF3B30]');
             
-            // Controlar visibilidade do stories-container
             const storiesContainer = document.getElementById('stories-container');
-            if(t === 'settings') {
-                storiesContainer.classList.add('hidden');
-            } else {
+            if(t === 'chats') {
                 storiesContainer.classList.remove('hidden');
+            } else {
+                storiesContainer.classList.add('hidden');
             }
             
-            if(t==='chats') loadChats();
+            if(t === 'chats' || t === 'archived') loadChats();
         }
         function closeChat() { 
             document.getElementById('chat-room').classList.remove('chat-open'); 
@@ -1410,12 +1568,37 @@
         async function sendMedia(ev) {
             const file = ev.target.files[0]; if(!file) return;
             const type = file.type.startsWith('image') ? 'image' : (file.type.startsWith('video') ? 'video' : (file.type.startsWith('audio') ? 'audio' : 'file'));
-            const reader = new FileReader(); reader.readAsDataURL(file);
-            if (isGroupChat && activeGroup) {
-                reader.onload = () => socket.emit('send_group_msg', { group_id: activeGroup, sender: me.username, content: reader.result, type: type });
-            } else if (active) {
-                reader.onload = () => socket.emit('send_msg', { s: me.username, r: active, c: reader.result, type: type });
-            }
+            
+            // Mostrar um indicador de carregamento
+            const btn = ev.target.parentElement;
+            const originalContent = btn.innerHTML;
+            btn.innerHTML = '<svg class="animate-spin h-5 w-5 text-white" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path></svg>';
+            btn.disabled = true;
+
+            const reader = new FileReader(); 
+            reader.readAsDataURL(file);
+            reader.onload = () => {
+                const data = {
+                    group_id: activeGroup,
+                    sender: me.username,
+                    s: me.username,
+                    r: active,
+                    content: reader.result,
+                    c: reader.result,
+                    type: type
+                };
+                
+                if (isGroupChat && activeGroup) {
+                    socket.emit('send_group_msg', data);
+                } else if (active) {
+                    socket.emit('send_msg', data);
+                }
+                
+                // Restaurar botão
+                btn.innerHTML = originalContent;
+                btn.disabled = false;
+                ev.target.value = ''; // Limpar input
+            };
         }
         
         // --- FUNÇÕES DE GRUPOS ---
@@ -1585,7 +1768,7 @@
             
             let content = `<p>${m.content}</p>`;
             if(m.type === 'image') content = `<img src="${m.content}" class="rounded-xl max-w-full border border-white/5">`;
-            if(m.type === 'video') content = `<video src="${m.content}" class="rounded-xl max-w-full border border-white/5" controls preload="metadata" style="max-height: 400px;"></video>`;
+            if(m.type === 'video') content = `<div class="relative rounded-xl overflow-hidden bg-black" style="max-height: 400px;"><video src="${m.content}" class="w-full h-auto block" controls preload="metadata" playsinline></video></div>`;
             if(m.type === 'audio') content = createAudioBubble(m.content, m.id);
             
             const reactionHtml = m.reaction ? `<div class="msg-reaction">${m.reaction}</div>` : '';
@@ -1841,6 +2024,7 @@
         
         socket.on('new_story', data => {
             loadStories();
+            loadChats();
         });
         
         socket.on('story_reply', data => {
