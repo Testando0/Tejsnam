@@ -17,7 +17,7 @@
             --tg-text: #FFFFFF;
             --tg-gray: #8E8E93;
         }
-        body, html { height: 100%; width: 100%; overflow: hidden; background: var(--tg-bg); color: var(--tg-text); font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; -webkit-tap-highlight-color: transparent; -webkit-touch-callout: none !important; -webkit-user-select: none !important; user-select: none !important; }
+        body, html { height: 100%; width: 100%; overflow: hidden; background: var(--tg-bg); color: var(--tg-text); font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; -webkit-tap-highlight-color: transparent !important; -webkit-touch-callout: none !important; -webkit-user-select: none !important; user-select: none !important; }
         .safe-pt { padding-top: env(safe-area-inset-top); }
         .safe-pb { padding-bottom: env(safe-area-inset-bottom); }
         .bg-blur { backdrop-filter: blur(25px); -webkit-backdrop-filter: blur(25px); }
@@ -289,7 +289,7 @@
         </div>
 
         <div class="absolute bottom-8 left-0 right-0 flex flex-col items-center gap-4 px-6 z-[3020]">
-            <div class="flex gap-6">
+            <div id="story-footer-actions" class="flex gap-6">
                 <button onclick="event.stopPropagation(); likeStory()" id="btn-like-story" class="bg-white/10 backdrop-blur-md text-white p-4 rounded-full active:scale-90 transition-all">
                     <svg class="w-6 h-6" fill="none" id="like-icon-svg" stroke="currentColor" viewBox="0 0 24 24"><path d="M4.318 6.318a4.5 4.5 0 000 6.364L12 20.364l7.682-7.682a4.5 4.5 0 00-6.364-6.364L12 7.636l-1.318-1.318a4.5 4.5 0 00-6.364 0z" stroke-width="2"/></svg>
                 </button>
@@ -297,7 +297,13 @@
                     <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path d="M3 10h10a8 8 0 018 8v2M3 10l6 6m-6-6l6-6" stroke-width="2"/></svg>
                 </button>
             </div>
-            <div class="text-white/40 text-[10px] font-bold uppercase tracking-widest">Responder</div>
+            <div id="story-footer-text" class="text-white/40 text-[10px] font-bold uppercase tracking-widest">Responder</div>
+            
+            <!-- Viewers Section -->
+            <div id="story-viewers-btn" class="hidden flex flex-col items-center gap-1 cursor-pointer" onclick="event.stopPropagation(); showStoryViewers()">
+                <svg class="w-6 h-6 text-white/60" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" stroke-width="2"/><path d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" stroke-width="2"/></svg>
+                <span id="story-viewers-count" class="text-white text-xs font-bold">0</span>
+            </div>
         </div>
     </div>
 
@@ -725,9 +731,20 @@
             document.getElementById('story-viewer-name').innerText = s.display_name || s.username;
             document.getElementById('story-viewer-time').innerText = formatSeen(s.time);
             
+            // Update Footer based on ownership
+            const isMyStory = s.username === me.username;
+            document.getElementById('story-footer-actions').classList.toggle('hidden', isMyStory);
+            document.getElementById('story-footer-text').classList.toggle('hidden', isMyStory);
+            document.getElementById('story-viewers-btn').classList.toggle('hidden', !isMyStory);
+            if (isMyStory) {
+                const viewers = typeof s.viewers === 'string' ? JSON.parse(s.viewers) : s.viewers;
+                document.getElementById('story-viewers-count').innerText = viewers.length;
+            }
+            
             // Update Like Icon
             const likeIcon = document.getElementById('like-icon-svg');
-            if (s.likes.includes(me.username)) {
+            const likes = typeof s.likes === 'string' ? JSON.parse(s.likes) : s.likes;
+            if (likes.includes(me.username)) {
                 likeIcon.setAttribute('fill', 'currentColor');
                 likeIcon.style.color = '#FF3B30';
             } else {
@@ -739,7 +756,7 @@
             clearTimeout(storyTimer);
             
             // Registrar visualização
-            if (s.username !== me.username && !s.viewers.includes(me.username)) {
+            if (!isMyStory && !likes.includes(me.username)) {
                 fetch(`/stories/${s.id}/view`, {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
@@ -826,15 +843,18 @@
             if (!currentStory) return;
             const message = prompt('Responder ao status:');
             if (message && message.trim()) {
-                // Enviar via socket para garantir que chegue como mensagem de chat
+                let context = "";
+                if (currentStory.type === 'text') context = `"${currentStory.content.substring(0, 20)}..."`;
+                else if (currentStory.type === 'video') context = "[Vídeo]";
+                else context = "[Imagem]";
+
                 socket.emit('send_msg', { 
                     s: me.username, 
                     r: currentStory.username, 
-                    c: `Reagiu ao seu status: "${message.trim()}"`, 
+                    c: `Respondeu ao seu status ${context}: "${message.trim()}"`, 
                     type: 'text' 
                 });
                 
-                // Também salvar no log de respostas de stories
                 fetch(`/stories/${currentStory.id}/reply`, {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
@@ -844,6 +864,13 @@
                     closeStory();
                 });
             }
+        }
+
+        function showStoryViewers() {
+            if (!currentStory) return;
+            const viewers = typeof currentStory.viewers === 'string' ? JSON.parse(currentStory.viewers) : currentStory.viewers;
+            if (viewers.length === 0) return alert('Ninguém viu ainda.');
+            alert('Visualizado por: \n' + viewers.join('\n'));
         }
 
         function closeStory() {
@@ -871,7 +898,6 @@
                 ...groups.map(g => ({ ...g, isGroup: true, time: new Date(g.created_at || 0).getTime(), contact: g.group_id, display_name: g.name }))
             ];
             
-            // Sort: Pinned first, then by time
             allChats.sort((a, b) => {
                 if (a.is_pinned !== b.is_pinned) return b.is_pinned - a.is_pinned;
                 return b.time - a.time;
@@ -887,8 +913,10 @@
                 
                 return `
                     <div oncontextmenu="handleChatContextMenu(event, '${c.contact}', ${c.isGroup}, ${isArchived}, ${isPinned})" 
+                         onpointerdown="handleChatPressStart(event, '${c.contact}', ${c.isGroup}, ${isArchived}, ${isPinned})"
+                         onpointerup="handleChatPressEnd(event)"
                          onclick="${c.isGroup ? `openGroupChat('${c.contact}')` : `openChat('${c.contact}')`}" 
-                         class="flex items-center gap-4 p-5 active:bg-white/5 transition-all cursor-pointer relative">
+                         class="flex items-center gap-4 p-5 active:bg-white/5 transition-all cursor-pointer relative touch-none select-none">
                         <div class="relative w-16 h-16 shrink-0">
                             <img src="${avatar}" class="w-full h-full rounded-full object-cover border border-white/5">
                             ${!c.isGroup && c.is_online ? '<div class="absolute bottom-0.5 right-0.5 w-4 h-4 bg-green-500 rounded-full border-[3px] border-black"></div>' : ''}
@@ -916,8 +944,35 @@
             const activeChats = allChats.filter(c => c.is_archived !== 1);
             const archivedChats = allChats.filter(c => c.is_archived === 1);
             
-            chatContainer.innerHTML = activeChats.length ? activeChats.map(renderChat).join('') : '<div class="p-10 text-center text-gray-500 font-bold">Nenhuma conversa ativa</div>';
+            // Layout WhatsApp Style: Arquivados no topo se houver
+            let html = '';
+            if (archivedChats.length > 0) {
+                html += `
+                    <div onclick="switchTab('archived')" class="flex items-center gap-4 p-5 active:bg-white/5 transition-all cursor-pointer border-b border-white/5">
+                        <div class="w-16 h-16 flex items-center justify-center">
+                            <svg class="w-8 h-8 text-[#FF3B30]" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path d="M5 4h14a2 2 0 012 2v12a2 2 0 01-2 2H5a2 2 0 01-2-2V6a2 2 0 012-2zm0 5h14M5 14h14" stroke-width="2"/></svg>
+                        </div>
+                        <div class="flex-1">
+                            <h3 class="font-black text-lg text-white">Arquivados</h3>
+                            <p class="text-xs font-bold text-gray-500">${archivedChats.length} conversas</p>
+                        </div>
+                    </div>
+                `;
+            }
+            
+            html += activeChats.length ? activeChats.map(renderChat).join('') : '<div class="p-10 text-center text-gray-500 font-bold">Nenhuma conversa ativa</div>';
+            chatContainer.innerHTML = html;
             archivedContainer.innerHTML = archivedChats.length ? archivedChats.map(renderChat).join('') : '<div class="p-10 text-center text-gray-500 font-bold">Nenhuma conversa arquivada</div>';
+        }
+
+        let chatPressTimer;
+        function handleChatPressStart(e, contactId, isGroup, isArchived, isPinned) {
+            chatPressTimer = setTimeout(() => {
+                handleChatContextMenu(e, contactId, isGroup, isArchived, isPinned);
+            }, 600);
+        }
+        function handleChatPressEnd() {
+            clearTimeout(chatPressTimer);
         }
 
         function handleChatContextMenu(e, contactId, isGroup, isArchived, isPinned) {
@@ -1154,7 +1209,9 @@
         }
 
         function toggleAudioPlay(e, msgId) {
-            e.stopPropagation();
+            if (e) {
+                e.stopPropagation();
+            }
             const bubble = document.querySelector(`[data-audio-id="${msgId}"]`);
             if(!bubble) return;
             const audio = bubble.querySelector('audio');
@@ -1164,32 +1221,34 @@
             const btn = bubble.querySelector('.audio-play-btn');
 
             if (audio.paused) {
-                // Parar outros áudios que possam estar tocando
+                // Parar outros áudios
                 document.querySelectorAll('audio').forEach(a => {
                     if (a !== audio) {
                         a.pause();
                         const otherBubble = a.closest('.audio-bubble');
                         if (otherBubble) {
-                            otherBubble.querySelector('.play-icon').classList.remove('hidden');
-                            otherBubble.querySelector('.pause-icon').classList.add('hidden');
-                            otherBubble.querySelector('.audio-play-btn').classList.remove('playing');
+                            const pIcon = otherBubble.querySelector('.play-icon');
+                            const paIcon = otherBubble.querySelector('.pause-icon');
+                            const bIcon = otherBubble.querySelector('.audio-play-btn');
+                            if (pIcon) pIcon.classList.remove('hidden');
+                            if (paIcon) paIcon.classList.add('hidden');
+                            if (bIcon) bIcon.classList.remove('playing');
                         }
                     }
                 });
                 
                 audio.play().then(() => {
-                    playIcon.classList.add('hidden');
-                    pauseIcon.classList.remove('hidden');
-                    btn.classList.add('playing');
+                    if (playIcon) playIcon.classList.add('hidden');
+                    if (pauseIcon) pauseIcon.classList.remove('hidden');
+                    if (btn) btn.classList.add('playing');
                 }).catch(err => {
                     console.error('Erro ao reproduzir áudio:', err);
-                    alert("Não foi possível reproduzir o áudio. Verifique a conexão.");
                 });
             } else {
                 audio.pause();
-                playIcon.classList.remove('hidden');
-                pauseIcon.classList.add('hidden');
-                btn.classList.remove('playing');
+                if (playIcon) playIcon.classList.remove('hidden');
+                if (pauseIcon) pauseIcon.classList.add('hidden');
+                if (btn) btn.classList.remove('playing');
             }
         }
 
