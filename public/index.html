@@ -65,6 +65,9 @@
         /* Stories Styles */
         .story-circle { width: 64px; height: 64px; border-radius: 50%; padding: 2px; border: 2px solid #FF3B30; flex-shrink: 0; cursor: pointer; }
         .story-circle img { width: 100%; height: 100%; border-radius: 50%; object-cover: cover; border: 2px solid #000; }
+        .story-ring { width: 64px; height: 64px; border-radius: 50%; padding: 2px; border: 2px solid #FF3B30; flex-shrink: 0; cursor: pointer; }
+        .story-ring.seen { border-color: #555; }
+        .story-ring img { width: 100%; height: 100%; border-radius: 50%; object-fit: cover; border: 2px solid #000; }
         .story-viewer { position: fixed; inset: 0; z-index: 3000; background: #000; display: none; flex-direction: column; }
         .story-progress { display: flex; gap: 4px; padding: 10px; position: absolute; top: 0; width: 100%; z-index: 3010; }
         .story-bar { height: 2px; background: rgba(255,255,255,0.3); flex: 1; border-radius: 2px; overflow: hidden; }
@@ -547,15 +550,32 @@
             const isReg = !document.getElementById('d_auth').classList.contains('hidden');
             if(!u || !p) return alert("Preencha os campos");
             
-            const res = await fetch(isReg ? '/register' : '/login', { 
-                method:'POST', headers:{'Content-Type':'application/json'}, 
-                body:JSON.stringify({username:u, password:p, display_name:dn}) 
-            });
-            const data = await res.json();
-            if(res.ok) {
-                if(!isReg) { me = data; localStorage.setItem('tg_v2026', JSON.stringify(me)); enter(); }
-                else { alert("Conta Criada!"); toggleAuth(); }
-            } else alert(data.error);
+            const btn = document.getElementById('btn-auth');
+            btn.disabled = true;
+            btn.textContent = '...';
+            
+            try {
+                const res = await fetch(isReg ? '/register' : '/login', { 
+                    method:'POST', headers:{'Content-Type':'application/json'}, 
+                    body:JSON.stringify({username:u, password:p, display_name:dn}) 
+                });
+                const data = await res.json();
+                if(res.ok) {
+                    if(!isReg) { me = data; localStorage.setItem('tg_v2026', JSON.stringify(me)); enter(); }
+                    else { 
+                        alert("Conta criada com sucesso! Faça login."); 
+                        document.getElementById('u_auth').value = u;
+                        document.getElementById('p_auth').value = '';
+                        document.getElementById('d_auth').value = '';
+                        toggleAuth(); 
+                    }
+                } else alert(data.error || 'Erro ao processar. Tente novamente.');
+            } catch(e) {
+                alert('Erro de conexão. Verifique se o servidor está rodando.');
+            } finally {
+                btn.disabled = false;
+                btn.textContent = isReg ? 'Cadastrar' : 'Entrar';
+            }
         }
 
         window.onload = () => { const s = localStorage.getItem('tg_v2026'); if(s) { me = JSON.parse(s); enter(); } };
@@ -632,7 +652,7 @@
         // --- STORIES ---
         
         let currentUserStories = null;
-        let currentStoryIndex = 0;
+        let currentStoryIdx = 0;
         
         
         
@@ -1052,7 +1072,7 @@
             showContextMenu(null, null, null); // Chama a versão unificada para mensagens
         }
 
-        function closeContextMenu() { closeCtxMenu(); } function _closeContextMenu() {
+        function closeContextMenu() {
             document.getElementById('context-overlay').classList.add('hidden');
             if (window.activeBubble) {
                 window.activeBubble.style.transform = 'scale(1)';
@@ -1305,10 +1325,11 @@
         }
 
         function closeCtxMenu() {
-            const ctx = document.getElementById('ctx-container');
-            if (ctx) ctx.classList.add('hidden');
-            const msgCtx = document.getElementById('msg-ctx-menu');
-            if (msgCtx) msgCtx.style.display = 'none';
+            document.getElementById('context-overlay').classList.add('hidden');
+            if (window.activeBubble) {
+                window.activeBubble.style.transform = 'scale(1)';
+                window.activeBubble = null;
+            }
         }
 
         function renderStoryReplyPreview(storyContext) {
@@ -1486,54 +1507,27 @@
         
         // Modificar startChat para verificar amizade antes de abrir conversa
 
-    html += active_.length ? active_.map(render).join('') : '<div class="p-12 text-center text-gray-600 font-medium">Nenhuma conversa ainda</div>';
-    chatContainer.innerHTML = html;
-}
-
-function chatPressStart(e, contactId, isGroup, isArchived, isPinned) {
-    if (e.button === 2) return;
-    chatPressTimer = setTimeout(() => {
-        window._blockClick = true;
-        handleChatCtx(e, contactId, isGroup, isArchived, isPinned);
-    }, 600);
-}
-function chatPressEnd() { clearTimeout(chatPressTimer); }
-
-function handleChatCtx(e, contactId, isGroup, isArchived, isPinned) {
-    e.preventDefault();
-    const menu = [
-        { text: isPinned ? 'Desafixar' : 'Fixar', icon: 'M10 2a1 1 0 011 1v1.323l3.954 1.582 1.599-.8a1 1 0 01.894 1.79l-1.233.616 1.738 5.42a1 1 0 01-.285 1.05A3.989 3.989 0 0115 15a3.989 3.989 0 01-2.667-1.019 1 1 0 01-.285-1.05l1.738-5.42L8.561 8.33a1 1 0 01.894-1.788l1.599.799L11 4.323V3a1 1 0 011-1h-2z', action: `toggleChatSetting('${contactId}','is_pinned',${!isPinned})` },
-        { text: isArchived ? 'Desarquivar' : 'Arquivar', icon: 'M5 8h14M5 8a2 2 0 110-4h14a2 2 0 110 4M5 8v10a2 2 0 002 2h10a2 2 0 002-2V8m-9 4h4', action: `toggleChatSetting('${contactId}','is_archived',${!isArchived})` },
-        { text: 'Apagar', icon: 'M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16', action: `deleteChat('${contactId}')`, red: true }
-    ];
-    document.getElementById('ctx-container').querySelector('.reactions-bar').style.display = 'none';
-    showChatCtxMenu(e, menu);
-}
-
-async function toggleChatSetting(contactId, setting, value) {
-    const body = { username: me.username, contact_id: contactId };
-    body[setting] = value ? 1 : 0;
-    await fetch('/chats/settings', { method: 'POST', headers: {'Content-Type':'application/json'}, body: JSON.stringify(body) });
-    closeCtxMenu();
-    loadChats();
-}
-
-async function deleteChat(contactId) {
-    if (!confirm('Apagar esta conversa?')) return;
-    await fetch('/chats/delete', { method: 'POST', headers: {'Content-Type':'application/json'}, body: JSON.stringify({ username: me.username, contact_id: contactId }) });
-    closeCtxMenu();
-    loadChats();
-}
-
-function showArchivedModal() {
-    // Simple: show archived in a bottom sheet
-    loadChats(); // already shows archived link at top
-    showToast(null, 'Segure para arquivar/desarquivar conversas', 'ℹ️');
-}
 
 // ============================================================
 // OPEN CHATS
 // ============================================================
+
+        async function toggleChatSetting(contactId, setting, value) {
+            const body = { username: me.username, contact_id: contactId };
+            body[setting] = value ? 1 : 0;
+            await fetch('/chats/settings', { method: 'POST', headers: {'Content-Type':'application/json'}, body: JSON.stringify(body) });
+            closeContextMenu();
+            loadChats();
+        }
+
+        async function deleteChat(contactId) {
+            if (!confirm('Apagar esta conversa?')) return;
+            await fetch('/chats/delete', { method: 'POST', headers: {'Content-Type':'application/json'}, body: JSON.stringify({ username: me.username, contact_id: contactId }) });
+            closeContextMenu();
+            loadChats();
+        }
+
+
 async function openChat(u) {
     const target = u.toLowerCase();
     const checkRes = await fetch(`/friends/check/${me.username}/${target}`).then(r => r.json());
@@ -1614,7 +1608,7 @@ async function refreshActiveUserStatus() {
     } catch(e) {}
 }
 
-setInterval(refreshActiveUserStatus, 4000);
+// (refreshActiveUserStatus interval already set above)
 
 // ============================================================
 // SEND MEDIA
@@ -1655,7 +1649,7 @@ async function saveProfile() {
     const dn = document.getElementById('set_dn_input').value, bio = document.getElementById('set_bio').value;
     const res = await fetch('/update-profile', { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ username: me.username, display_name: dn, bio }) });
     const d = await res.json();
-    if (d.ok) { me = d.user; localStorage.setItem('wa2026', JSON.stringify(me)); updateUI(); }
+    if (d.ok) { me = d.user; localStorage.setItem('tg_v2026', JSON.stringify(me)); updateUI(); }
 }
 
 async function upload(type, ev) {
@@ -1664,7 +1658,7 @@ async function upload(type, ev) {
     reader.onload = async () => {
         const res = await fetch('/update-profile', { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ username: me.username, [type]: reader.result }) });
         const d = await res.json();
-        if (d.ok) { me = d.user; localStorage.setItem('wa2026', JSON.stringify(me)); updateUI(); }
+        if (d.ok) { me = d.user; localStorage.setItem('tg_v2026', JSON.stringify(me)); updateUI(); }
     };
 }
 
@@ -1681,7 +1675,7 @@ function viewProfile() {
 }
 
 function logout() {
-    localStorage.removeItem('wa2026');
+    localStorage.removeItem('tg_v2026');
     location.reload();
 }
 
@@ -1691,7 +1685,7 @@ setInterval(async () => {
     try {
         const u = await fetch(`/user/${me.username}`).then(r => r.json());
         if (JSON.stringify({avatar:u.avatar,display_name:u.display_name,bio:u.bio}) !== JSON.stringify({avatar:me.avatar,display_name:me.display_name,bio:me.bio})) {
-            me = u; localStorage.setItem('wa2026', JSON.stringify(me)); updateUI();
+            me = u; localStorage.setItem('tg_v2026', JSON.stringify(me)); updateUI();
         }
     } catch(e) {}
 }, 6000);
@@ -2162,17 +2156,21 @@ async function startChat() {
 // TAB SWITCHING
 // ============================================================
 function switchTab(t) {
-    ['chats','settings'].forEach(x => {
+    ['chats','settings','archived'].forEach(x => {
         const tab = document.getElementById(`tab-${x}`);
-        const btn = document.getElementById(`btn-${x}`);
         if (tab) tab.classList.toggle('hidden', t !== x);
+    });
+    ['chats','settings'].forEach(x => {
+        const btn = document.getElementById(`btn-${x}`);
         if (btn) {
             const isActive = t === x;
-            btn.querySelector('svg').style.color = isActive ? '#FF3B30' : '#4B5563';
-            btn.querySelector('span').style.color = isActive ? '#FF3B30' : '#4B5563';
+            const svg = btn.querySelector('svg');
+            const span = btn.querySelector('span');
+            if (svg) svg.style.color = isActive ? '#FF3B30' : '#4B5563';
+            if (span) span.style.color = isActive ? '#FF3B30' : '#4B5563';
         }
     });
-    document.getElementById('stories-bar').classList.toggle('hidden', t !== 'chats');
+    document.getElementById('stories-container').classList.toggle('hidden', t !== 'chats');
     if (t === 'chats') loadChats();
 }
 
