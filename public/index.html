@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
-    <title>REDSPACE</title>
+    <title>WhatsApp 2026 Premium</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="/socket.io/socket.io.js"></script>
     <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
@@ -92,28 +92,30 @@
         .audio-waveform-bar.active { background: #FF3B30; }
 
         /* Prevent text selection on long press - BLOQUEIO TOTAL */
-        .msg-bubble { 
-            -webkit-user-select: none !important; 
-            -moz-user-select: none !important; 
-            -ms-user-select: none !important; 
-            user-select: none !important; 
-            -webkit-touch-callout: none !important; /* iOS callout menu */
-            touch-action: none !important; /* Prevenir gestos do navegador */
-            -webkit-tap-highlight-color: transparent !important; /* Remover highlight do tap */
-        }
-        .msg-bubble * { 
-            -webkit-user-select: none !important; 
-            -moz-user-select: none !important; 
-            -ms-user-select: none !important; 
-            user-select: none !important; 
+        .msg-bubble {
+            -webkit-user-select: none !important;
+            -moz-user-select: none !important;
+            user-select: none !important;
             -webkit-touch-callout: none !important;
-            pointer-events: none !important; /* Desabilitar eventos de ponteiro em elementos filhos */
+            -webkit-tap-highlight-color: transparent !important;
         }
-        /* Reabilitar eventos de ponteiro apenas em elementos interativos */
+        /* Bloquear seleção em texto, mas NÃO bloquear pointer-events globalmente */
+        .msg-bubble > p {
+            pointer-events: none !important;
+            -webkit-user-select: none !important;
+            user-select: none !important;
+        }
+        /* Garantir que áudio e controles interativos funcionem */
+        .msg-bubble .audio-bubble,
+        .msg-bubble .audio-bubble *,
         .msg-bubble .audio-play-btn,
+        .msg-bubble .audio-play-btn svg,
+        .msg-bubble .audio-play-btn path,
         .msg-bubble .audio-progress,
         .msg-bubble img {
-            pointer-events: auto;
+            pointer-events: auto !important;
+            touch-action: auto !important;
+            cursor: pointer;
         }
     </style>
 </head>
@@ -590,34 +592,100 @@
 
         // --- PEERJS & CALLS ---
         function initPeer() {
-            peer = new Peer(me.username + '_peer');
+            if (peer) { try { peer.destroy(); } catch(e) {} }
+            const peerId = me.username + '_peer_' + Date.now();
+            peer = new Peer(peerId, {
+                config: {
+                    iceServers: [
+                        { urls: 'stun:stun.l.google.com:19302' },
+                        { urls: 'stun:stun1.l.google.com:19302' }
+                    ]
+                }
+            });
+            peer.on('open', id => { peer._myId = id; console.log('[Peer] Connected:', id); });
             peer.on('call', call => {
                 currentCall = call;
-                showIncomingCall(call.peer.replace('_peer', ''));
+                currentCallPeerId = call.peer;
+                const callerName = call.peer.replace(/_peer_\d+$/, '');
+                showIncomingCall(callerName);
+            });
+            peer.on('error', err => {
+                console.warn('[Peer] Error:', err.type, err);
+                if (err.type === 'peer-unavailable') {
+                    showToast(null, '❌ Usuário não está disponível para chamadas', '');
+                    rejectCall();
+                } else if (err.type === 'network' || err.type === 'server-error') {
+                    // Try reconnect after 2s
+                    setTimeout(initPeer, 2000);
+                }
+            });
+            peer.on('disconnected', () => {
+                if (peer && !peer.destroyed) {
+                    try { peer.reconnect(); } catch(e) { setTimeout(initPeer, 2000); }
+                }
             });
         }
 
-        function initiateCall(type) {
-            if (!active) return;
+        let currentCallPeerId = null;
+
+        async function initiateCall(type) {
+            if (!active || !peer) return;
+            
+            // Find the peer ID of the target user (they may have suffix)
+            // We try to call via socket signal approach using their stored peer ID
+            const targetPeerId = active + '_peer_'; // prefix - we'll use socket to get exact ID
+            
             document.getElementById('call-overlay').style.display = 'flex';
             document.getElementById('call-name').innerText = active;
             document.getElementById('call-status').innerText = 'Chamando...';
-            document.getElementById('ringtone').play();
             
-            navigator.mediaDevices.getUserMedia({ audio: true, video: type === 'video' }).then(stream => {
+            // Set avatar
+            if (window.activeUserData) {
+                const av = window.activeUserData.avatar || `https://ui-avatars.com/api/?name=${active}&background=FF3B30&color=fff`;
+                document.getElementById('call-avatar').src = av;
+            }
+            
+            try {
+                document.getElementById('ringtone').play().catch(()=>{});
+            } catch(e) {}
+            
+            try {
+                const stream = await navigator.mediaDevices.getUserMedia({ audio: true, video: type === 'video' });
                 localStream = stream;
-                const call = peer.call(active + '_peer', stream);
-                currentCall = call;
-                setupCallEvents(call);
-            });
+                
+                // Signal via socket to get the recipient's peer ID
+                socket.emit('call_request', { from: me.username, to: active, type });
+                
+                // Timeout if no answer
+                window._callTimeout = setTimeout(() => {
+                    if (!currentCall || !currentCall.open) {
+                        document.getElementById('call-status').innerText = 'Sem resposta';
+                        setTimeout(rejectCall, 2000);
+                    }
+                }, 30000);
+                
+            } catch(err) {
+                console.warn('getUserMedia error:', err);
+                document.getElementById('call-overlay').style.display = 'none';
+                if (err.name === 'NotAllowedError') showToast(null, '❌ Permissão de microfone negada', '');
+                else showToast(null, '❌ Erro ao acessar microfone/câmera', '');
+            }
         }
 
-        function showIncomingCall(from) {
+        async function showIncomingCall(from) {
             document.getElementById('call-overlay').style.display = 'flex';
             document.getElementById('call-name').innerText = from;
-            document.getElementById('call-status').innerText = 'Chamada recebida';
+            document.getElementById('call-status').innerText = '📞 Chamada recebida';
             document.getElementById('btn-accept-call').classList.remove('hidden');
-            document.getElementById('ringtone').play();
+            try { document.getElementById('ringtone').play().catch(()=>{}); } catch(e) {}
+            // Fetch caller avatar
+            try {
+                const u = await fetch('/user/' + from).then(r => r.json());
+                document.getElementById('call-avatar').src = u.avatar || `https://ui-avatars.com/api/?name=${encodeURIComponent(from)}&background=FF3B30&color=fff`;
+                document.getElementById('call-name').innerText = u.display_name || from;
+            } catch(e) {
+                document.getElementById('call-avatar').src = `https://ui-avatars.com/api/?name=${encodeURIComponent(from)}&background=FF3B30&color=fff`;
+            }
         }
 
         function acceptCall() {
@@ -625,28 +693,55 @@
                 localStream = stream;
                 currentCall.answer(stream);
                 setupCallEvents(currentCall);
-                document.getElementById('call-status').innerText = 'Em chamada';
+                document.getElementById('call-status').innerText = 'Em chamada...';
                 document.getElementById('btn-accept-call').classList.add('hidden');
-                document.getElementById('ringtone').pause();
+                try { const r = document.getElementById('ringtone'); r.pause(); r.currentTime = 0; } catch(e) {}
+            }).catch(err => {
+                showToast(null, '❌ Sem permissão de microfone', '');
+                rejectCall();
             });
         }
 
         function rejectCall() {
-            if (currentCall) currentCall.close();
-            if (localStream) localStream.getTracks().forEach(t => t.stop());
+            clearTimeout(window._callTimeout);
+            // Notify remote
+            if (currentCallPeerId) {
+                socket.emit('call_rejected_by_peer', { to: currentCallPeerId });
+            }
+            if (currentCall) { try { currentCall.close(); } catch(e) {} }
+            if (localStream) { localStream.getTracks().forEach(t => t.stop()); localStream = null; }
+            const remoteAudio = document.getElementById('remote-audio');
+            if (remoteAudio) { remoteAudio.srcObject = null; }
+            currentCall = null; currentCallPeerId = null;
             document.getElementById('call-overlay').style.display = 'none';
-            document.getElementById('ringtone').pause();
+            document.getElementById('btn-accept-call').classList.add('hidden');
+            try { const r = document.getElementById('ringtone'); r.pause(); r.currentTime = 0; } catch(e) {}
         }
 
         function setupCallEvents(call) {
             call.on('stream', remoteStream => {
-                const audio = new Audio();
-                audio.srcObject = remoteStream;
-                audio.play();
-                document.getElementById('call-status').innerText = 'Conectado';
-                document.getElementById('ringtone').pause();
+                let remoteAudio = document.getElementById('remote-audio');
+                if (!remoteAudio) {
+                    remoteAudio = document.createElement('audio');
+                    remoteAudio.id = 'remote-audio';
+                    remoteAudio.autoplay = true;
+                    remoteAudio.style.display = 'none';
+                    document.body.appendChild(remoteAudio);
+                }
+                remoteAudio.srcObject = remoteStream;
+                remoteAudio.play().catch(e => console.warn('Remote audio play error:', e));
+                document.getElementById('call-status').innerText = 'Conectado ✓';
+                try { const r = document.getElementById('ringtone'); r.pause(); r.currentTime = 0; } catch(e) {}
             });
-            call.on('close', () => rejectCall());
+            call.on('close', () => {
+                document.getElementById('call-status').innerText = 'Chamada encerrada';
+                setTimeout(rejectCall, 1500);
+            });
+            call.on('error', err => {
+                console.warn('[Call] Error:', err);
+                showToast(null, '❌ Erro na chamada', '');
+                rejectCall();
+            });
         }
 
         // --- STORIES ---
@@ -855,11 +950,43 @@
             const div = document.createElement('div'); 
             div.className = `flex flex-col ${isMe ? 'items-end' : 'items-start'} mb-1 msg-wrapper`;
             div.id = `msg-${m.id}`;
-            let content = `<p>${m.c}</p>`;
-            if(m.type === 'image') content = `<img src="${m.c}" class="rounded-xl max-w-full border border-white/5">`;
-            if(m.type === 'video') content = `<div class="relative rounded-xl overflow-hidden bg-black" style="max-height: 400px;"><video src="${m.c}" class="w-full h-auto block" controls preload="metadata" playsinline></video></div>`;
-            if(m.type === 'audio') content = createAudioBubble(m.c, m.id);
-            if(m.type === 'call') content = `<div class="flex items-center gap-2 py-1"><svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path d="M3 5a2 2 0 012-2h3.28a1 1 0 01.948.684l1.498 4.493a1 1 0 01-.502 1.21l-2.257 1.13a11.042 11.042 0 005.516 5.516l1.13-2.257a1 1 0 011.21-.502l4.493 1.498a1 1 0 01.684.949V19a2 2 0 01-2 2h-1C9.716 21 3 14.284 3 6V5z"/></svg> <span class="font-bold">${m.c}</span></div>`;
+            
+            // reply_context preview
+            let replyHtml = '';
+            if (m.reply_context) {
+                try {
+                    const ctx = typeof m.reply_context === 'string' ? JSON.parse(m.reply_context) : m.reply_context;
+                    if (ctx) {
+                        const rprev = ctx.type === 'image' ? `<img src="${ctx.c}" class="w-10 h-10 object-cover rounded-lg flex-shrink-0">` :
+                                      ctx.type === 'audio' ? `<span class="text-lg flex-shrink-0">🎤</span>` :
+                                      ctx.type === 'video' ? `<span class="text-lg flex-shrink-0">🎥</span>` : '';
+                        replyHtml = `<div class="flex gap-2 items-center mb-1.5 px-2 py-1 rounded-lg bg-black/30 border-l-2 border-white/40 text-xs text-gray-300 overflow-hidden">${rprev}<span class="truncate">${escHtml(String(ctx.c || '').substring(0,60))}</span></div>`;
+                    }
+                } catch(e) {}
+            }
+            
+            let content;
+            if (m.type === 'story_reply') {
+                try {
+                    const ctx = JSON.parse(m.c);
+                    const storyPrev = ctx.story_type === 'image'
+                        ? `<img src="${ctx.story_content}" class="w-14 h-14 object-cover rounded-xl flex-shrink-0">`
+                        : ctx.story_type === 'video'
+                        ? `<div class="w-14 h-14 rounded-xl bg-black flex items-center justify-center text-2xl flex-shrink-0">🎥</div>`
+                        : `<div class="w-14 h-14 rounded-xl flex items-center justify-center text-xs text-white font-bold flex-shrink-0 p-1 text-center" style="background:${escHtml(ctx.bg_color||'#FF3B30')}">${escHtml((ctx.story_content||'').substring(0,30))}</div>`;
+                    content = `<div class="mb-1.5 p-2 rounded-xl bg-black/40 border-l-2 border-[#FF3B30] flex gap-2 items-center"><div class="flex-shrink-0">${storyPrev}</div><div class="flex-1 min-w-0"><p class="text-[10px] font-black text-[#FF3B30] truncate">↩ Status de @${escHtml(ctx.story_owner||'')}</p><p class="text-xs text-gray-200 mt-0.5">${escHtml(ctx.reply||'')}</p></div></div>`;
+                } catch(e) { content = `<p class="text-sm italic text-gray-400">💬 Respondeu a um status</p>`; }
+            } else if (m.type === 'image') {
+                content = replyHtml + `<img src="${m.c}" class="rounded-xl max-w-full border border-white/5" style="cursor:pointer;" onclick="window.open('${m.c}','_blank')">`;
+            } else if (m.type === 'video') {
+                content = replyHtml + `<div class="relative rounded-xl overflow-hidden bg-black" style="max-height:400px;"><video src="${m.c}" class="w-full h-auto block" controls preload="metadata" playsinline></video></div>`;
+            } else if (m.type === 'audio') {
+                content = createAudioBubble(m.c, m.id);
+            } else if (m.type === 'call') {
+                content = `<div class="flex items-center gap-2 py-1"><svg class="w-5 h-5 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path d="M3 5a2 2 0 012-2h3.28a1 1 0 01.948.684l1.498 4.493a1 1 0 01-.502 1.21l-2.257 1.13a11.042 11.042 0 005.516 5.516l1.13-2.257a1 1 0 011.21-.502l4.493 1.498a1 1 0 01.684.949V19a2 2 0 01-2 2h-1C9.716 21 3 14.284 3 6V5z"/></svg><span class="font-semibold text-sm">${escHtml(m.c)}</span></div>`;
+            } else {
+                content = replyHtml + `<p class="whitespace-pre-wrap break-words">${escHtml(m.c)}</p>`;
+            }
             
             const reactionHtml = m.reaction ? `<div class="msg-reaction">${m.reaction}</div>` : '';
             
@@ -877,29 +1004,27 @@
                 </div>`;
             document.getElementById('msg-container').appendChild(div);
             
-            // Inicializar controles de áudio se necessário
             if(m.type === 'audio') {
                 setTimeout(() => initAudioControls(m.id), 0);
             }
         }
 
         function createAudioBubble(src, msgId) {
-            // Adicionar preload="auto" e crossOrigin="anonymous" para melhor compatibilidade
-            return `<div class="audio-bubble" data-audio-id="${msgId}">
-                <div class="audio-play-btn" onclick="toggleAudioPlay(event, ${msgId})">
-                    <svg class="w-4 h-4 text-white play-icon" fill="currentColor" viewBox="0 0 24 24"><path d="M8 5v14l11-7z"/></svg>
-                    <svg class="w-4 h-4 text-white pause-icon hidden" fill="currentColor" viewBox="0 0 24 24"><path d="M6 4h4v16H6V4zm8 0h4v16h-4V4z"/></svg>
+            return `<div class="audio-bubble" data-audio-id="${msgId}" style="pointer-events:auto;touch-action:auto;">
+                <div class="audio-play-btn" data-play-id="${msgId}" style="pointer-events:auto;touch-action:auto;cursor:pointer;">
+                    <svg class="w-4 h-4 text-white play-icon" fill="currentColor" viewBox="0 0 24 24" style="pointer-events:none;"><path d="M8 5v14l11-7z"/></svg>
+                    <svg class="w-4 h-4 text-white pause-icon hidden" fill="currentColor" viewBox="0 0 24 24" style="pointer-events:none;"><path d="M6 4h4v16H6V4zm8 0h4v16h-4V4z"/></svg>
                 </div>
-                <div class="audio-info">
-                    <div class="audio-progress" onclick="seekAudio(event, ${msgId})">
-                        <div class="audio-progress-fill"></div>
+                <div class="audio-info" style="pointer-events:auto;">
+                    <div class="audio-progress" data-seek-id="${msgId}" style="pointer-events:auto;touch-action:auto;cursor:pointer;">
+                        <div class="audio-progress-fill" style="pointer-events:none;"></div>
                     </div>
-                    <div class="flex items-center justify-between">
+                    <div class="flex items-center justify-between" style="pointer-events:none;">
                         <span class="audio-time current-time">0:00</span>
                         <span class="audio-time duration-time">...</span>
                     </div>
                 </div>
-                <audio src="${src}" data-msg-id="${msgId}" preload="auto" style="display: none;"></audio>
+                <audio src="${src}" data-msg-id="${msgId}" preload="auto" style="display:none;"></audio>
             </div>`;
         }
 
@@ -911,39 +1036,63 @@
             if (!bubble) return;
             const audio = bubble.querySelector('audio');
             if (!audio) return;
+            const playBtn = bubble.querySelector('.audio-play-btn');
+            const progressBar = bubble.querySelector('.audio-progress');
 
             const updateAudioProgress = () => {
-                if(audio.duration && !isNaN(audio.duration)) {
-                    const progress = (audio.currentTime / audio.duration) * 100;
+                if (audio.duration && !isNaN(audio.duration)) {
                     const progressFill = bubble.querySelector('.audio-progress-fill');
                     const currentTime = bubble.querySelector('.current-time');
-                    if (progressFill) progressFill.style.width = progress + '%';
+                    if (progressFill) progressFill.style.width = ((audio.currentTime / audio.duration) * 100) + '%';
                     if (currentTime) currentTime.innerText = formatAudioTime(audio.currentTime);
                 }
             };
 
             const updateAudioDuration = () => {
-                if(audio.duration && !isNaN(audio.duration)) {
+                if (audio.duration && !isNaN(audio.duration)) {
                     const durationTime = bubble.querySelector('.duration-time');
                     if (durationTime) durationTime.innerText = formatAudioTime(audio.duration);
                 }
             };
 
-            const resetAudioPlayBtn = () => {
+            const resetPlayBtn = () => {
                 const playIcon = bubble.querySelector('.play-icon');
                 const pauseIcon = bubble.querySelector('.pause-icon');
-                const btn = bubble.querySelector('.audio-play-btn');
                 if (playIcon) playIcon.classList.remove('hidden');
                 if (pauseIcon) pauseIcon.classList.add('hidden');
-                if (btn) btn.classList.remove('playing');
+                if (playBtn) playBtn.classList.remove('playing');
             };
 
             audio.addEventListener('timeupdate', updateAudioProgress);
             audio.addEventListener('loadedmetadata', updateAudioDuration);
-            audio.addEventListener('canplaythrough', updateAudioDuration);
-            audio.addEventListener('ended', resetAudioPlayBtn);
-            
-            // Forçar load
+            audio.addEventListener('durationchange', updateAudioDuration);
+            audio.addEventListener('canplay', updateAudioDuration);
+            audio.addEventListener('ended', resetPlayBtn);
+            audio.addEventListener('pause', resetPlayBtn);
+
+            // Listener direto no botão de play (mais confiável que onclick inline)
+            if (playBtn) {
+                const handlePlayClick = (e) => {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    toggleAudioPlay(e, msgId);
+                };
+                playBtn.addEventListener('click', handlePlayClick);
+                playBtn.addEventListener('touchend', (e) => {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    toggleAudioPlay(e, msgId);
+                }, { passive: false });
+            }
+
+            // Listener na barra de progresso
+            if (progressBar) {
+                progressBar.addEventListener('click', (e) => {
+                    e.stopPropagation();
+                    seekAudio(e, msgId);
+                });
+            }
+
             audio.load();
         }
 
@@ -953,56 +1102,50 @@
                 e.stopPropagation();
             }
             const bubble = document.querySelector(`[data-audio-id="${msgId}"]`);
-            if(!bubble) return;
+            if (!bubble) return;
             const audio = bubble.querySelector('audio');
-            if(!audio) return;
+            if (!audio) return;
             const playIcon = bubble.querySelector('.play-icon');
             const pauseIcon = bubble.querySelector('.pause-icon');
             const btn = bubble.querySelector('.audio-play-btn');
 
-            if (audio.paused || audio.ended) {
-                // Parar outros áudios
-                document.querySelectorAll('audio').forEach(a => {
-                    if (a !== audio) {
-                        a.pause();
-                        const otherBubble = a.closest('.audio-bubble');
-                        if (otherBubble) {
-                            const pIcon = otherBubble.querySelector('.play-icon');
-                            const paIcon = otherBubble.querySelector('.pause-icon');
-                            const bIcon = otherBubble.querySelector('.audio-play-btn');
-                            if (pIcon) pIcon.classList.remove('hidden');
-                            if (paIcon) paIcon.classList.add('hidden');
-                            if (bIcon) bIcon.classList.remove('playing');
-                        }
-                    }
-                });
-                
-                // Se o áudio terminou, recomeçar do zero
-                if (audio.ended) audio.currentTime = 0;
-
-                // Tentar tocar
-                const playPromise = audio.play();
-                if (playPromise !== undefined) {
-                    playPromise.then(() => {
-                        if (playIcon) playIcon.classList.add('hidden');
-                        if (pauseIcon) pauseIcon.classList.remove('hidden');
-                        if (btn) btn.classList.add('playing');
-                    }).catch(err => {
-                        console.error('Erro ao reproduzir áudio:', err);
-                        // Fallback: recarregar e tentar novamente
-                        audio.load();
-                        audio.play().then(() => {
-                            if (playIcon) playIcon.classList.add('hidden');
-                            if (pauseIcon) pauseIcon.classList.remove('hidden');
-                            if (btn) btn.classList.add('playing');
-                        });
-                    });
-                }
-            } else {
-                audio.pause();
+            const showPlaying = () => {
+                if (playIcon) playIcon.classList.add('hidden');
+                if (pauseIcon) pauseIcon.classList.remove('hidden');
+                if (btn) btn.classList.add('playing');
+            };
+            const showPaused = () => {
                 if (playIcon) playIcon.classList.remove('hidden');
                 if (pauseIcon) pauseIcon.classList.add('hidden');
                 if (btn) btn.classList.remove('playing');
+            };
+
+            if (audio.paused || audio.ended) {
+                // Parar todos os outros áudios primeiro
+                document.querySelectorAll('audio').forEach(a => {
+                    if (a !== audio && !a.paused) {
+                        a.pause();
+                    }
+                });
+
+                if (audio.ended) audio.currentTime = 0;
+
+                const playPromise = audio.play();
+                if (playPromise !== undefined) {
+                    playPromise.then(showPlaying).catch(err => {
+                        console.warn('Audio play error:', err);
+                        // Tentar novamente após reload
+                        audio.load();
+                        setTimeout(() => {
+                            audio.play().then(showPlaying).catch(e2 => console.error('Audio play failed:', e2));
+                        }, 300);
+                    });
+                } else {
+                    showPlaying();
+                }
+            } else {
+                audio.pause();
+                showPaused();
             }
         }
 
@@ -1027,28 +1170,35 @@
         }
 
         function handleMsgPressStart(e, id) {
-            // BLOQUEIO TOTAL de comportamento padrão do navegador
+            // Não bloquear eventos em controles de áudio
+            const isAudioControl = e.target.closest('.audio-play-btn') ||
+                                   e.target.closest('.audio-progress') ||
+                                   e.target.closest('.audio-bubble');
+            if (isAudioControl) return;
+
+            // Bloquear seleção de texto
             if (e.cancelable) e.preventDefault();
             e.stopPropagation();
-            
-            // Remover qualquer seleção existente
-            if (window.getSelection) {
-                window.getSelection().removeAllRanges();
-            }
-            
-            // Reforçar bloqueio de seleção
+
+            if (window.getSelection) window.getSelection().removeAllRanges();
             document.onselectstart = () => false;
-            
+
             selectedMsgId = id;
             const bubble = e.currentTarget;
             longPressTimer = setTimeout(() => {
                 showMsgContextMenu(e, bubble);
-            }, 500);
-            
+            }, 600);
+
             return false;
         }
 
         function handleMsgPressEnd(e) {
+            // Não bloquear eventos em controles de áudio
+            const isAudioControl = e && (e.target.closest('.audio-play-btn') ||
+                                         e.target.closest('.audio-progress') ||
+                                         e.target.closest('.audio-bubble'));
+            if (isAudioControl) return;
+
             if (e && e.cancelable) {
                 e.preventDefault();
                 e.stopPropagation();
@@ -1253,6 +1403,36 @@
                 loadChats();
                 loadStories();
             }
+        });
+
+        // ── Call signaling via socket ──
+        socket.on('incoming_call_request', data => {
+            // Someone is calling us - send back our peer ID so they can connect
+            if (peer && peer._myId) {
+                socket.emit('call_peer_response', { from: me.username, to: data.from, peer_id: peer._myId, type: data.type });
+            }
+            currentCallPeerId = data.from;
+            document.getElementById('call-avatar').src = `https://ui-avatars.com/api/?name=${data.from}&background=FF3B30&color=fff`;
+            showIncomingCall(data.from);
+        });
+
+        socket.on('call_peer_response', async data => {
+            // We now have the target's peer ID - initiate PeerJS call
+            if (!peer || !localStream) return;
+            try {
+                const call = peer.call(data.peer_id, localStream);
+                currentCall = call;
+                setupCallEvents(call);
+                document.getElementById('call-status').innerText = 'Conectando...';
+            } catch(e) {
+                showToast(null, '❌ Erro ao conectar chamada', '');
+                rejectCall();
+            }
+        });
+
+        socket.on('call_rejected_by_peer', () => {
+            showToast(null, '📵 Chamada recusada', '');
+            rejectCall();
         });
 
         // Função para atualizar status do usuário ativo
@@ -1662,15 +1842,22 @@ async function upload(type, ev) {
     };
 }
 
-function viewProfile() {
-    if (!window.activeUserData) return;
-    const u = window.activeUserData;
-    document.getElementById('prof_avatar').src = u.avatar || `https://ui-avatars.com/api/?background=1C1C1E&color=fff&name=${u.display_name}`;
-    document.getElementById('prof_dn').textContent = u.display_name;
+async function viewProfile() {
+    // If in group chat, show group info instead
+    if (isGroupChat) { viewGroupInfo(); return; }
+    
+    let u = window.activeUserData;
+    if (!u && active) {
+        // Fetch fresh
+        try { u = await fetch('/user/' + active).then(r => r.json()); } catch(e) {}
+    }
+    if (!u) return;
+    
+    document.getElementById('prof_avatar').src = u.avatar || `https://ui-avatars.com/api/?background=1C1C1E&color=fff&name=${encodeURIComponent(u.display_name || u.username)}`;
+    document.getElementById('prof_dn').textContent = u.display_name || u.username;
     document.getElementById('prof_un').textContent = '@' + u.username;
     document.getElementById('prof_bio').textContent = u.bio || 'Sem bio';
-    const isOnline = u.is_online;
-    document.getElementById('prof_online_dot').classList.toggle('hidden', !isOnline);
+    document.getElementById('prof_online_indicator').classList.toggle('hidden', !u.is_online);
     document.getElementById('profile-modal').classList.remove('hidden');
 }
 
