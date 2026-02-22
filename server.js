@@ -302,6 +302,7 @@ app.post('/register', async (req, res) => {
 
 app.post('/login', async (req, res) => {
     const { username, password } = req.body;
+    if (!username || !password) return res.status(400).json({error: "Campos obrigatórios"});
     const user = getUsers().find(u => u.username === username.toLowerCase().trim());
     if (user && await bcrypt.compare(password, user.password)) {
         const { password: _, ...safe } = user; res.json(safe);
@@ -657,21 +658,21 @@ app.post('/friends/remove', (req, res) => {
     });
 });
 
-app.get('/friends/:username', (req, res) => {
-    const username = req.params.username.toLowerCase().trim();
-    db.all(`SELECT * FROM friendships WHERE (requester = ? OR recipient = ?) AND status = 'accepted'`, [username, username], (err, rows) => {
-        if (err) return res.status(500).json([]);
-        const users = getUsers();
-        res.json((rows || []).map(f => { const fn = f.requester === username ? f.recipient : f.requester; const u = users.find(u => u.username === fn); return { username: fn, display_name: u?.display_name || fn, avatar: u?.avatar || '', is_online: u?.is_online || false, last_seen: u?.last_seen || null }; }));
-    });
-});
-
 app.get('/friends/requests/:username', (req, res) => {
     const username = req.params.username.toLowerCase().trim();
     db.all(`SELECT * FROM friendships WHERE recipient = ? AND status = 'pending'`, [username], (err, rows) => {
         if (err) return res.status(500).json([]);
         const users = getUsers();
         res.json((rows || []).map(r => { const u = users.find(u => u.username === r.requester); return { id: r.id, username: r.requester, display_name: u?.display_name || r.requester, avatar: u?.avatar || '', created_at: r.created_at }; }));
+    });
+});
+
+app.get('/friends/:username', (req, res) => {
+    const username = req.params.username.toLowerCase().trim();
+    db.all(`SELECT * FROM friendships WHERE (requester = ? OR recipient = ?) AND status = 'accepted'`, [username, username], (err, rows) => {
+        if (err) return res.status(500).json([]);
+        const users = getUsers();
+        res.json((rows || []).map(f => { const fn = f.requester === username ? f.recipient : f.requester; const u = users.find(u => u.username === fn); return { username: fn, display_name: u?.display_name || fn, avatar: u?.avatar || '', is_online: u?.is_online || false, last_seen: u?.last_seen || null }; }));
     });
 });
 
