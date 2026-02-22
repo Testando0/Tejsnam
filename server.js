@@ -171,6 +171,32 @@ io.on('connection', (socket) => {
         if (onlineUsers.has(data.to.toLowerCase())) onlineUsers.get(data.to.toLowerCase()).forEach(sid => io.to(sid).emit('call_ended'));
     });
 
+    // ── Call signaling via socket (for PeerJS peer ID exchange) ──
+    socket.on('call_request', (data) => {
+        const to = (data.to || '').toLowerCase();
+        const from = (data.from || '').toLowerCase();
+        if (onlineUsers.has(to)) {
+            onlineUsers.get(to).forEach(sid => io.to(sid).emit('incoming_call_request', { from, type: data.type }));
+        } else {
+            // Target offline
+            if (onlineUsers.has(from)) onlineUsers.get(from).forEach(sid => io.to(sid).emit('call_rejected_by_peer'));
+        }
+    });
+
+    socket.on('call_peer_response', (data) => {
+        const to = (data.to || '').toLowerCase();
+        if (onlineUsers.has(to)) {
+            onlineUsers.get(to).forEach(sid => io.to(sid).emit('call_peer_response', { peer_id: data.peer_id, type: data.type }));
+        }
+    });
+
+    socket.on('call_rejected_by_peer', (data) => {
+        const to = (data.to || '').toLowerCase();
+        if (onlineUsers.has(to)) {
+            onlineUsers.get(to).forEach(sid => io.to(sid).emit('call_rejected_by_peer'));
+        }
+    });
+
     socket.on('delete_msg', (data) => {
         const { id, username } = data;
         db.get("SELECT * FROM messages WHERE id = ?", [id], (err, row) => {
