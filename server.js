@@ -374,6 +374,26 @@ app.post('/chats/delete', (req, res) => {
         function(err) { if (err) return res.status(500).json({ error: err.message }); res.json({ ok: true }); });
 });
 
+app.post('/messages', (req, res) => {
+    const { s, r, c, type, caption, reply_context } = req.body;
+    if (!s || !r || !c) return res.status(400).json({ error: 'Campos obrigatórios' });
+    const sender = s.toLowerCase().trim(), recipient = r.toLowerCase().trim();
+    const timestamp = new Date().toISOString();
+    const isRecipientOnline = onlineUsers.has(recipient) && onlineUsers.get(recipient).size > 0;
+    const status = isRecipientOnline ? 1 : 0;
+    let content = c;
+    if (type !== 'text' && type !== 'story_reply' && content && content.startsWith('data:')) {
+        content = saveBase64File(content, 'uploads', sender);
+    }
+    const replyCtx = reply_context ? (typeof reply_context === 'string' ? reply_context : JSON.stringify(reply_context)) : null;
+    db.run("INSERT INTO messages (s, r, c, type, status, time, caption, reply_context) VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
+        [sender, recipient, content, type || 'text', status, timestamp, caption || '', replyCtx],
+        function(err) {
+            if (err) return res.status(500).json({ error: err.message });
+            res.json({ ok: true, id: this.lastID, time: timestamp, c: content });
+        });
+});
+
 app.get('/messages/:u1/:u2', (req, res) => {
     db.all("SELECT * FROM messages WHERE (s=? AND r=?) OR (s=? AND r=?) ORDER BY time ASC",
         [req.params.u1.toLowerCase(), req.params.u2.toLowerCase(), req.params.u2.toLowerCase(), req.params.u1.toLowerCase()],
@@ -505,7 +525,7 @@ app.post('/stories/:id/like', (req, res) => {
         db.run('UPDATE stories SET likes = ? WHERE id = ?', [JSON.stringify(likes), id], (err) => {
             if (err) return res.status(500).json({ error: err.message });
             if (onlineUsers.has(row.story_owner)) onlineUsers.get(row.story_owner).forEach(sid => io.to(sid).emit('story_liked', { story_id: id, username, liked: index === -1 }));
-            res.json({ ok: true, liked: index === -1 });
+            res.json({ ok: true, liked: index === -1, likes });
         });
     });
 });
@@ -649,7 +669,7 @@ app.post('/groups/:group_id/update', (req, res) => {
         values.push(group_id);
         db.run(`UPDATE groups SET ${updates.join(', ')} WHERE group_id = ?`, values, function(err) {
             if (err) return res.status(500).json({ error: err.message });
-            io.emit('group_updated', { group_id }); res.json({ ok: true });
+            io.emit('group_updated', { group_id }); res.json({ ok: true, group: { group_id, name: name || '', avatar: '' } });
         });
     });
 });
@@ -674,28 +694,27 @@ app.post('/friends/request', (req, res) => {
 });
 
 app.post('/friends/accept', (req, res) => {
-    const { request_id, username } = req.body;
-    if (!request_id || !username) return res.status(400).json({ error: 'Campos obrigatórios' });
-    const user_l = username.toLowerCase().trim(), now = new Date().toISOString();
-    db.get(`SELECT * FROM friendships WHERE id = ? AND recipient = ?`, [request_id, user_l], (err, request) => {
-        if (err || !request) return res.status(404).json({ error: 'Solicitação não encontrada' });
-        db.run(`UPDATE friendships SET status = 'accepted', updated_at = ? WHERE id = ?`, [now, request_id], (err) => {
-            if (err) return res.status(500).json({ error: err.message });
-            if (onlineUsers.has(request.requester)) onlineUsers.get(request.requester).forEach(sid => io.to(sid).emit('friend_accepted', { by: user_l }));
+    const { requester, recipient } = req.body;
+    if (!requester || !recipient) return res.status(400).json({ error: 'Campos obrigatórios' });
+    const req_l = requester.toLowerCase().trim(), rec_l = recipient.toLowerCase().trim();
+    const now = new Date().toISOString();
+    db.run(`UPDATE friendships SET status='accepted', updated_at=? WHERE requester=? AND recipient=? AND status='pending'`,
+        [now, req_l, rec_l], function(err) {
+            if (err || this.changes === 0) return res.status(404).json({ error: 'Solicitação não encontrada' });
+            if (onlineUsers.has(req_l)) onlineUsers.get(req_l).forEach(sid => io.to(sid).emit('friend_accepted', { by: rec_l }));
             res.json({ ok: true });
         });
-    });
 });
 
 app.post('/friends/reject', (req, res) => {
-    const { request_id, username } = req.body;
-    db.get(`SELECT * FROM friendships WHERE id = ? AND recipient = ?`, [request_id, username.toLowerCase().trim()], (err, request) => {
-        if (err || !request) return res.status(404).json({ error: 'Solicitação não encontrada' });
-        db.run(`DELETE FROM friendships WHERE id = ?`, [request_id], (err) => {
+    const { requester, recipient } = req.body;
+    if (!requester || !recipient) return res.status(400).json({ error: 'Campos obrigatórios' });
+    const req_l = requester.toLowerCase().trim(), rec_l = recipient.toLowerCase().trim();
+    db.run(`DELETE FROM friendships WHERE requester=? AND recipient=? AND status='pending'`,
+        [req_l, rec_l], function(err) {
             if (err) return res.status(500).json({ error: err.message });
             res.json({ ok: true });
         });
-    });
 });
 
 app.post('/friends/remove', (req, res) => {
