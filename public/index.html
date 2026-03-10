@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no,viewport-fit=cover">
-<title>REDSPACE</title>
+<title>Tejsnam</title>
 <script src="https://cdn.tailwindcss.com"></script>
 <script src="/socket.io/socket.io.js"></script>
 <script src="https://unpkg.com/peerjs@1.5.2/dist/peerjs.min.js"></script>
@@ -100,7 +100,7 @@ input,textarea{-webkit-user-select:text!important;user-select:text!important;}
   <div class="pulse" style="width:88px;height:88px;background:linear-gradient(135deg,#e53935,#b71c1c);border-radius:28px;display:flex;align-items:center;justify-content:center;margin-bottom:28px;box-shadow:0 20px 60px rgba(229,57,53,.3);">
     <svg width="52" height="52" viewBox="0 0 100 100" fill="none"><path d="M88 12L18 50L88 88L68 50Z" fill="white" opacity=".9"/><path d="M68 50L38 70L48 50Z" fill="#b71c1c"/></svg>
   </div>
-  <h1 style="font-size:32px;font-weight:900;letter-spacing:-1px;margin-bottom:6px;">REDSPACE <span style="color:var(--red)">2026</span></h1>
+  <h1 style="font-size:32px;font-weight:900;letter-spacing:-1px;margin-bottom:6px;">Tejsnam <span style="color:var(--red)">2026</span></h1>
   <p style="color:var(--text3);font-size:11px;letter-spacing:3px;text-transform:uppercase;margin-bottom:36px;">Premium Messenger</p>
   <div style="width:100%;max-width:340px;display:flex;flex-direction:column;gap:12px;">
     <div style="position:relative;">
@@ -123,7 +123,7 @@ input,textarea{-webkit-user-select:text!important;user-select:text!important;}
         <svg style="width:26px;height:26px;" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="2"><path d="M18 9v3m0 0v3m0-3h3m-3 0h-3m-2-5a4 4 0 11-8 0 4 4 0 018 0zM3 20a6 6 0 0112 0v1H3v-1z"/></svg>
         <span id="fr-badge" style="display:none;position:absolute;top:-3px;right:-3px;background:var(--red);color:#fff;font-size:9px;font-weight:900;min-width:16px;height:16px;border-radius:8px;align-items:center;justify-content:center;padding:0 3px;"></span>
       </button>
-      <h1 style="font-size:20px;font-weight:800;letter-spacing:-.4px;">REDSPACE</h1>
+      <h1 style="font-size:20px;font-weight:800;letter-spacing:-.4px;">Tejsnam</h1>
       <div style="display:flex;align-items:center;gap:2px;">
         <button onclick="document.getElementById('new-group-modal').style.display='flex'" style="color:var(--red);background:none;border:none;cursor:pointer;padding:6px;">
           <svg style="width:24px;height:24px;" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="2"><path d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0z"/></svg>
@@ -526,12 +526,15 @@ async function authAction(){
   const btn=document.getElementById('btn-auth');
   btn.innerHTML='<span class="loader"></span>';btn.disabled=true;
   try{
-    const ep=isRegMode?'/register':'/login';
-    const body=isRegMode?{username:u,password:p,display_name:dn||u}:{username:u,password:p};
-    const r=await fetch(ep,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)});
+    if(isRegMode){
+      const rr=await fetch('/register',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({username:u,password:p,display_name:dn||u})});
+      const dd=await rr.json();
+      if(!rr.ok)throw new Error(dd.error||'Erro ao registrar');
+    }
+    const r=await fetch('/login',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({username:u,password:p})});
     const d=await r.json();
-    if(!r.ok)throw new Error(d.error||'Erro');
-    enter(d.user||d);
+    if(!r.ok)throw new Error(d.error||'Credenciais inválidas');
+    enter(d);
   }catch(e){showToast(e.message,'error');}
   btn.innerHTML=isRegMode?'Criar Conta':'Entrar';btn.disabled=false;
 }
@@ -666,14 +669,22 @@ function initSocket(){
 
 // ====== CHATS ======
 async function loadChats(){
-  const r=await fetch(`/chats/${me}`).catch(()=>null);
-  if(!r||!r.ok)return;
-  const d=await r.json();
-  window._chats=d;filterChats(document.getElementById('search-input')?.value||'');
+  const [dmR,grR]=await Promise.all([
+    fetch(`/chats/${me}`).catch(()=>null),
+    fetch(`/groups/my/${me}`).catch(()=>null)
+  ]);
+  const dms=dmR&&dmR.ok?await dmR.json():[];
+  const groups=grR&&grR.ok?await grR.json():[];
+  // Normalize DM fields
+  const normDms=dms.map(c=>({...c,contact_name:c.display_name||c.contact,last_msg_preview:c.last_msg||'',last_msg_time:c.last_time||c.time||'',unread_count:c.unread||0}));
+  // Normalize group fields  
+  const normGroups=groups.map(g=>({...g,group_id:g.group_id,contact_name:g.name,last_msg_preview:g.last_msg||'',last_msg_time:g.last_time||'',unread_count:g.unread||0,is_archived:0,is_pinned:0}));
+  window._chats=[...normDms,...normGroups];
+  filterChats(document.getElementById('search-input')?.value||'');
 }
 function filterChats(q){
   const d=window._chats||[];
-  const f=q?d.filter(c=>(c.contact_name||c.contact||c.group_name||'').toLowerCase().includes(q.toLowerCase())):d;
+  const f=q?d.filter(c=>(c.contact_name||c.group_name||c.name||c.contact||'').toLowerCase().includes(q.toLowerCase())):d;
   renderChats(f);
 }
 function renderChats(list){
@@ -698,7 +709,7 @@ function renderChats(list){
 function chatRow(c){
   const isG=!!c.group_id;
   const id=isG?c.group_id:c.contact;
-  const name=isG?escHtml(c.group_name):escHtml(c.contact_name||c.contact);
+  const name=escHtml(c.contact_name||c.group_name||c.contact||c.name||'');
   const avatar=c.avatar||'';
   const unread=c.unread_count||0;
   const time=c.last_msg_time?formatDate(c.last_msg_time):'';
@@ -1179,7 +1190,7 @@ function buildSettings(){
   </div>
   <div style="padding:14px 20px 8px;"><span style="font-size:10px;font-weight:900;color:var(--text3);letter-spacing:2px;text-transform:uppercase;">Sobre</span></div>
   <div style="padding:0 20px 24px;color:var(--text3);font-size:13px;line-height:1.7;">
-    <p style="font-size:18px;font-weight:900;color:var(--text);margin-bottom:4px;">REDSPACE 2026</p>
+    <p style="font-size:18px;font-weight:900;color:var(--text);margin-bottom:4px;">Tejsnam 2026</p>
     <p>Versão 3.0 &mdash; Premium Messenger</p>
     <p>End-to-end encrypted &bull; Socket.IO &bull; PeerJS</p>
   </div>
