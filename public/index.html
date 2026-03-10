@@ -6,7 +6,6 @@
 <title>Tejsnam</title>
 <script src="https://cdn.tailwindcss.com"></script>
 <script src="/socket.io/socket.io.js"></script>
-<script src="https://unpkg.com/peerjs@1.5.2/dist/peerjs.min.js"></script>
 <style>
 :root{
   --bg:#090909;--bg2:#111;--bg3:#1a1a1a;--bg4:#222;
@@ -550,17 +549,22 @@ function enter(u){
 
 // ====== PEER/CALLS ======
 function initPeer(){
-  try{
-    peer=new Peer(undefined,{host:window.location.hostname,port:window.location.port||80,path:'/peerjs'});
-    peer.on('open',id=>{myPeerId=id;socket&&socket.emit('register_peer',{username:me,peerId:id});});
-    peer.on('call',call=>{setupCallEvents(call,false);});
-    peer.on('error',()=>{});
-  }catch(e){}
+  // PeerJS not used - calls handled via WebRTC + socket signaling
 }
-function initiateCall(type){
+async function initiateCall(type){
   if(!activeChat||isGroupChat)return;
-  socket.emit('call_request',{from:me,to:activeChat,type,peerId:myPeerId,callerName:myDN,callerAvatar:myAvatar});
-  showCallOverlay(activeChat,document.getElementById('chat_avatar').src,'A chamar...','outgoing');
+  try{
+    currentStream=await navigator.mediaDevices.getUserMedia({audio:true,video:false});
+    const pc=new RTCPeerConnection({iceServers:[{urls:'stun:stun.l.google.com:19302'}]});
+    window._pc=pc;
+    currentStream.getTracks().forEach(t=>pc.addTrack(t,currentStream));
+    pc.onicecandidate=e=>{if(e.candidate)socket.emit('call_ice',{to:activeChat,from:me,candidate:e.candidate});};
+    pc.ontrack=e=>{const audio=new Audio();audio.srcObject=e.streams[0];audio.play();};
+    const offer=await pc.createOffer();
+    await pc.setLocalDescription(offer);
+    socket.emit('call_offer',{to:activeChat,from:me,offer,type});
+    showCallOverlay(document.getElementById('chat_name').textContent,document.getElementById('chat_avatar').src,'A chamar...','outgoing');
+  }catch(e){showToast('Microfone indisponível','error');}
 }
 function showCallOverlay(name,avatar,status,mode){
   document.getElementById('call-avatar').src=avatar;
@@ -579,22 +583,32 @@ function showIncomingCall(data){
 }
 async function acceptCall(){
   if(!incomingCallData)return;
+  const callerFrom=incomingCallData.from;
+  incomingCallData=null;
   try{
     currentStream=await navigator.mediaDevices.getUserMedia({audio:true,video:false});
-    const call=peer.call(incomingCallData.peerId,currentStream);
-    setupCallEvents(call,true);
-    socket.emit('call_peer_response',{to:incomingCallData.from,accepted:true,peerId:myPeerId});
+    const pc=new RTCPeerConnection({iceServers:[{urls:'stun:stun.l.google.com:19302'}]});
+    window._pc=pc;
+    currentStream.getTracks().forEach(t=>pc.addTrack(t,currentStream));
+    pc.onicecandidate=e=>{if(e.candidate)socket.emit('call_ice',{to:callerFrom,from:me,candidate:e.candidate});};
+    pc.ontrack=e=>{const audio=new Audio();audio.srcObject=e.streams[0];audio.play();};
+    if(window._pendingOffer){
+      await pc.setRemoteDescription(window._pendingOffer);
+      const answer=await pc.createAnswer();
+      await pc.setLocalDescription(answer);
+      socket.emit('call_answer',{to:callerFrom,from:me,answer});
+      window._pendingOffer=null;
+    }
     startCallDuration();
   }catch(e){showToast('Não foi possível acessar o microfone','error');rejectCall();}
-  incomingCallData=null;
 }
 function rejectCall(){
-  if(incomingCallData){socket.emit('call_peer_response',{to:incomingCallData.from,accepted:false});incomingCallData=null;}
+  if(incomingCallData){socket.emit('reject_call',{to:incomingCallData.from,from:me});incomingCallData=null;}
   endCallCleanup();
 }
 function endCallCleanup(){
   if(currentStream){currentStream.getTracks().forEach(t=>t.stop());currentStream=null;}
-  if(currentCall){try{currentCall.close();}catch(e){} currentCall=null;}
+  if(window._pc){try{window._pc.close();}catch(e){} window._pc=null;}
   if(callDurationTimer){clearInterval(callDurationTimer);callDurationTimer=null;}
   callStartTime=null;isMuted=false;
   document.getElementById('call-overlay').style.display='none';
@@ -602,20 +616,8 @@ function endCallCleanup(){
   document.getElementById('btn-mute').style.background='var(--bg3)';
   document.getElementById('mute-label').textContent='Mudo';
 }
-function setupCallEvents(call,isAnswer){
-  currentCall=call;
-  if(isAnswer)return;
-  call.on('stream',stream=>{
-    startCallDuration();
-    document.getElementById('call-status').textContent='Conectado';
-  });
-  call.on('close',()=>endCallCleanup());
-  call.on('error',()=>endCallCleanup());
-  if(!isAnswer){
-    navigator.mediaDevices.getUserMedia({audio:true}).then(stream=>{
-      currentStream=stream;call.answer(stream);
-    }).catch(()=>endCallCleanup());
-  }
+function setupCallEvents(){
+  // handled via WebRTC socket events
 }
 function startCallDuration(){
   callStartTime=Date.now();
@@ -638,7 +640,7 @@ function toggleMute(){
 // ====== SOCKET ======
 function initSocket(){
   socket=io();
-  socket.emit('join',{username:me});
+  socket.emit('join', me);
   socket.on('new_msg',data=>{
     if((data.s===activeChat&&data.r===me)||(data.r===activeChat&&data.s===me))addMsg(data);
     loadChats();
@@ -647,24 +649,37 @@ function initSocket(){
     if(data.group_id===currentGroupId)addGroupMsg(data);
     loadChats();
   });
-  socket.on('msg_deleted',({id,isGroup,group_id})=>{
-    const el=document.getElementById('msg-'+id);
+  socket.on('msg_deleted',(msgId)=>{
+    const el=document.getElementById('msg-'+msgId);
     if(el){el.style.opacity='0.4';const b=el.querySelector('.msg-bubble');if(b){b.textContent='🗑 Apagado';}}
   });
   socket.on('msg_reacted',({id,reaction})=>{
     const el=document.getElementById('msg-'+id);
     if(el){let r=el.querySelector('.msg-reaction');if(!r){r=document.createElement('div');r.className='msg-reaction';el.style.marginBottom='14px';el.appendChild(r);}r.textContent=reaction;}
   });
-  socket.on('user_status',({username,online,lastSeen})=>{
-    if(username===activeChat&&!isGroupChat)updateChatStatus(online,lastSeen);
+  socket.on('user_status_change',({username,status,last_seen})=>{
+    if(username===activeChat&&!isGroupChat)updateChatStatus(status==='online', last_seen);
   });
-  socket.on('call_request',data=>showIncomingCall(data));
+  socket.on('call_offer',async data=>{
+    window._pendingOffer=data.offer;
+    showIncomingCall({from:data.from,callerName:data.from,callerAvatar:''});
+  });
+  socket.on('call_answer',async data=>{
+    if(window._pc)await window._pc.setRemoteDescription(data.answer).catch(()=>{});
+    startCallDuration();
+  });
+  socket.on('call_ice',async data=>{
+    if(window._pc&&data.candidate)await window._pc.addIceCandidate(data.candidate).catch(()=>{});
+  });
+  socket.on('call_rejected',()=>{showToast('Chamada rejeitada','error');endCallCleanup();});
+  socket.on('call_ended',()=>endCallCleanup());
+  socket.on('incoming_call_request',data=>showIncomingCall(data));
   socket.on('call_peer_response',data=>{
     if(data.accepted){document.getElementById('call-status').textContent='Conectado';startCallDuration();}
     else{showToast('Chamada rejeitada','error');endCallCleanup();}
   });
   socket.on('call_rejected_by_peer',()=>{showToast('Chamada rejeitada','error');endCallCleanup();});
-  socket.on('end_call',()=>endCallCleanup());
+  socket.on('call_ended',()=>endCallCleanup());
 }
 
 // ====== CHATS ======
@@ -776,7 +791,7 @@ async function openChat(contact){
   cont.innerHTML='';
   msgs.forEach(m=>addMsg(m,true));
   cont.scrollTop=cont.scrollHeight;
-  socket.emit('mark_read',{from:me,to:contact});
+  socket.emit('mark_read',{s:contact,r:me});
   loadChats();
 }
 async function openGroupChat(groupId){
@@ -957,11 +972,10 @@ async function sendMsg(){
   inp.value='';inp.style.height='auto';onChatInput(inp);
   const payload={s:me,r:activeChat,c:text,type:'text',reply_context:replyCtx?JSON.stringify(replyCtx):null};
   clearReply();
-  if(isGroupChat){socket.emit('send_group_msg',{group_id:currentGroupId,sender:me,content:text,type:'text'});}
-  else{
-    const r=await fetch('/messages',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(payload)}).catch(()=>null);
-    if(r&&r.ok){const d=await r.json();addMsg({...payload,id:d.id,time:new Date().toISOString()});}
-    socket.emit('send_msg',payload);
+  if(isGroupChat){
+    socket.emit('send_group_msg',{group_id:currentGroupId,sender:me,content:text,type:'text',reply_to:replyCtx?replyCtx.id:null});
+  }else{
+    socket.emit('send_msg',{...payload,reply_context:replyCtx});
   }
   loadChats();
 }
@@ -979,8 +993,6 @@ async function sendMedia(e){
     if(isGroupChat){
       socket.emit('send_group_msg',{group_id:currentGroupId,sender:me,content:dataUrl,type});
     }else{
-      const r=await fetch('/messages',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(payload)}).catch(()=>null);
-      if(r&&r.ok){const d=await r.json();addMsg({...payload,id:d.id,time:new Date().toISOString()});}
       socket.emit('send_msg',payload);
     }
     loadChats();
@@ -1015,11 +1027,7 @@ async function stopRecording(){
       const dataUrl=ev.target.result;
       const payload={s:me,r:activeChat,c:dataUrl,type:'audio'};
       if(isGroupChat){socket.emit('send_group_msg',{group_id:currentGroupId,sender:me,content:dataUrl,type:'audio'});}
-      else{
-        const r=await fetch('/messages',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(payload)}).catch(()=>null);
-        if(r&&r.ok){const d=await r.json();addMsg({...payload,id:d.id,time:new Date().toISOString()});}
-        socket.emit('send_msg',payload);
-      }
+      else{ socket.emit('send_msg',payload); }
     };
     reader.readAsDataURL(blob);
   };
@@ -1069,13 +1077,21 @@ function showMsgContextMenu(e,id,isGroup){
 function closeContextMenu(){document.getElementById('ctx-overlay').style.display='none';}
 async function deleteMsg(id,isGroup){
   closeContextMenu();
-  socket.emit('delete_msg',{id,username:me,isGroup,group_id:currentGroupId});
+  if(isGroup){
+    socket.emit('delete_group_msg',{id,group_id:currentGroupId,username:me});
+  }else{
+    socket.emit('delete_msg',{id,username:me});
+  }
   const el=document.getElementById('msg-'+id);
   if(el){el.style.opacity='.4';const b=el.querySelector('.msg-bubble');if(b)b.textContent='🗑 Apagado';}
 }
 async function reactToMsg(emoji){
   closeContextMenu();
-  socket.emit('react_msg',{id:ctxMsgId,reaction:emoji,isGroup:ctxIsGroup,group_id:currentGroupId});
+  if(ctxIsGroup){
+    socket.emit('react_group_msg',{id:ctxMsgId,reaction:emoji,group_id:currentGroupId});
+  }else{
+    socket.emit('react_msg',{id:ctxMsgId,reaction:emoji});
+  }
   const el=document.getElementById('msg-'+ctxMsgId);
   if(el){let r=el.querySelector('.msg-reaction');if(!r){r=document.createElement('div');r.className='msg-reaction';el.style.marginBottom='14px';el.appendChild(r);}r.textContent=emoji;}
 }
@@ -1373,8 +1389,8 @@ async function likeStory(){
   const r=await fetch(`/stories/${story.id}/like`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({username:me})}).catch(()=>null);
   if(r&&r.ok){
     const d=await r.json();
-    story.likes=d.likes;
-    const liked=d.likes.includes(me);
+    story.likes=d.likes||[];
+    const liked=d.liked;
     const icon=document.getElementById('like-icon-svg');
     if(icon)icon.style.fill=liked?'#ff5252':'none';
     showToast(liked?'❤️ Curtido!':'Descurtido','info');
@@ -1594,10 +1610,10 @@ function showFriendRequests(){
   list.innerHTML=d.map(req=>`
     <div style="display:flex;align-items:center;gap:12px;background:var(--bg2);padding:14px;border-radius:18px;border:1px solid var(--border);">
       <img src="${escHtml(req.avatar||'')}" style="width:48px;height:48px;border-radius:50%;object-fit:cover;background:var(--bg3);">
-      <div style="flex:1;"><p style="font-weight:800;font-size:15px;">${escHtml(req.display_name||req.requester)}</p><p style="color:var(--text3);font-size:12px;">@${escHtml(req.requester)}</p></div>
+      <div style="flex:1;"><p style="font-weight:800;font-size:15px;">${escHtml(req.display_name||req.username)}</p><p style="color:var(--text3);font-size:12px;">@${escHtml(req.username)}</p></div>
       <div style="display:flex;flex-direction:column;gap:7px;">
-        <button onclick="acceptFriendRequest('${req.requester}')" style="background:rgba(229,57,53,.15);color:var(--red);border:1px solid rgba(229,57,53,.3);padding:6px 14px;border-radius:10px;font-weight:800;font-size:13px;cursor:pointer;">Aceitar</button>
-        <button onclick="rejectFriendRequest('${req.requester}')" style="background:var(--bg3);color:var(--text3);border:1px solid var(--border);padding:6px 14px;border-radius:10px;font-weight:800;font-size:13px;cursor:pointer;">Recusar</button>
+        <button onclick="acceptFriendRequest('${req.username}')" style="background:rgba(229,57,53,.15);color:var(--red);border:1px solid rgba(229,57,53,.3);padding:6px 14px;border-radius:10px;font-weight:800;font-size:13px;cursor:pointer;">Aceitar</button>
+        <button onclick="rejectFriendRequest('${req.username}')" style="background:var(--bg3);color:var(--text3);border:1px solid var(--border);padding:6px 14px;border-radius:10px;font-weight:800;font-size:13px;cursor:pointer;">Recusar</button>
       </div>
     </div>`).join('');
   empty.classList.toggle('hidden',d.length>0);
