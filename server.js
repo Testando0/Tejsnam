@@ -399,6 +399,30 @@ app.post('/update-profile', (req, res) => {
     } else res.status(404).send();
 });
 
+app.post('/update-password', async (req, res) => {
+    const { username, password } = req.body;
+    if (!username || !password) return res.status(400).json({ error: 'Campos obrigatórios' });
+    let users = getUsers(), idx = users.findIndex(u => u.username === username.toLowerCase().trim());
+    if (idx === -1) return res.status(404).json({ error: 'Usuário não encontrado' });
+    const hash = await bcrypt.hash(password, 10);
+    users[idx].password = hash;
+    saveUsers(users);
+    res.json({ ok: true });
+});
+
+app.delete('/stories/:id', (req, res) => {
+    const { username } = req.body;
+    const id = parseInt(req.params.id);
+    db.get('SELECT * FROM stories WHERE id = ?', [id], (err, row) => {
+        if (!row) return res.status(404).json({ error: 'Não encontrado' });
+        if (row.username !== username?.toLowerCase().trim()) return res.status(403).json({ error: 'Sem permissão' });
+        db.run('DELETE FROM stories WHERE id = ?', [id], function(err) {
+            if (err) return res.status(500).json({ error: err.message });
+            res.json({ ok: true });
+        });
+    });
+});
+
 app.get('/stories', (req, res) => {
     const { viewer } = req.query;
     const yesterday = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString();
