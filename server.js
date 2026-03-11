@@ -350,7 +350,7 @@ app.get('/chats/:me', (req, res) => {
                 else if (r.type === 'video') lastMsg = '🎥 Vídeo';
                 else if (r.type === 'audio') lastMsg = '🎤 Áudio';
                 else if (r.type === 'story_reply') lastMsg = '💬 Respondeu ao status';
-                chats.set(r.contact, { contact: r.contact, display_name: u?.display_name || r.contact, avatar: u?.avatar || '', is_online: u?.is_online || false, last_seen: u?.last_seen || null, last_msg: lastMsg, last_time: r.time, type: r.type, is_archived: r.is_archived || 0, is_pinned: r.is_pinned || 0, unread: 0 });
+                chats.set(r.contact, { contact: r.contact, display_name: u?.display_name || r.contact, avatar: u?.avatar || '', is_online: onlineUsers.has(r.contact) && onlineUsers.get(r.contact).size > 0, last_seen: u?.last_seen || null, last_msg: lastMsg, last_time: r.time, type: r.type, is_archived: r.is_archived || 0, is_pinned: r.is_pinned || 0, unread: 0 });
             }
             if (r.r === me && r.status < 2) chats.get(r.contact).unread++;
         });
@@ -402,7 +402,12 @@ app.get('/messages/:u1/:u2', (req, res) => {
 
 app.get('/user/:u', (req, res) => {
     const user = getUsers().find(u => u.username === req.params.u.toLowerCase().trim());
-    if (user) { const { password, ...safe } = user; res.json(safe); }
+    if (user) {
+        const { password, ...safe } = user;
+        // Always reflect live socket status
+        safe.is_online = onlineUsers.has(safe.username) && onlineUsers.get(safe.username).size > 0;
+        res.json(safe);
+    }
     else res.status(404).json({error: "Não encontrado"});
 });
 
