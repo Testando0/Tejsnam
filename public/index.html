@@ -108,7 +108,7 @@ img[src=""]{display:none;}
     <div style="display:flex;align-items:center;justify-content:space-between;padding:10px 16px;">
       <button onclick="showFriendRequests()" style="position:relative;color:var(--red);background:none;border:none;cursor:pointer;padding:4px;">
         <svg style="width:26px;height:26px;" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="2"><path d="M18 9v3m0 0v3m0-3h3m-3 0h-3m-2-5a4 4 0 11-8 0 4 4 0 018 0zM3 20a6 6 0 0112 0v1H3v-1z"/></svg>
-        <span id="fr-badge" class="hidden" style="position:absolute;top:-3px;right:-3px;background:var(--red);color:#fff;font-size:9px;font-weight:900;min-width:16px;height:16px;border-radius:8px;display:flex;align-items:center;justify-content:center;padding:0 3px;"></span>
+        <span id="fr-badge" style="display:none;position:absolute;top:-3px;right:-3px;background:var(--red);color:#fff;font-size:9px;font-weight:900;min-width:16px;height:16px;border-radius:8px;align-items:center;justify-content:center;padding:0 3px;"></span>
       </button>
       <h1 style="font-size:20px;font-weight:800;letter-spacing:-.4px;">Tejsnam</h1>
       <div style="display:flex;align-items:center;gap:2px;">
@@ -1505,7 +1505,7 @@ function showCurrentStory(){
   if(isOwn)document.getElementById('story-viewers-count').textContent=`${(story.viewers||[]).length} visualizações`;
   const liked=(story.likes||[]).includes(me);
   const likeIcon=document.getElementById('like-icon-svg');
-  if(likeIcon){likeIcon.style.fill=liked?'#ff5252':'none';likeIcon.setAttribute('stroke',liked?'#ff5252','currentColor');}
+  if(likeIcon){likeIcon.style.fill=liked?'#ff5252':'none';likeIcon.setAttribute('stroke',liked?'#ff5252':'currentColor');}
   // Progress bars
   const progressEl=document.getElementById('story-progress');
   const storyCount=group.stories.length;
