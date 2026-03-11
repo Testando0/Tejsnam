@@ -230,15 +230,25 @@ img[src=""]{display:none;}
   z-index:2;
 }
 
-/* ===== ARCHIVED BANNER (Telegram style) ===== */
+/* ===== ARCHIVED BANNER (Telegram style - pull to reveal) ===== */
 #archived-banner{
   display:flex;align-items:center;gap:12px;
   padding:14px 20px;
   background:linear-gradient(135deg,rgba(229,57,53,.08),rgba(183,28,28,.05));
   border-bottom:2px solid var(--border);
   cursor:pointer;overflow:hidden;
-  transition:background .2s;
-  will-change:transform;
+  transition:background .2s, transform .3s cubic-bezier(.22,1,.36,1), opacity .3s;
+  will-change:transform,opacity;
+  transform:translateY(-100%);
+  opacity:0;
+}
+#archived-banner.revealed{
+  transform:translateY(0)!important;
+  opacity:1!important;
+}
+#archived-banner.always-show{
+  transform:translateY(0)!important;
+  opacity:1!important;
 }
 #archived-banner:active{background:rgba(229,57,53,.12);}
 #archived-banner.hidden{display:none!important;}
@@ -253,19 +263,75 @@ img[src=""]{display:none;}
   padding:6px 0;
   transition:opacity .3s;
 }
+/* Pull-to-reveal drag indicator */
+#arch-pull-indicator{
+  position:sticky;top:0;left:0;right:0;z-index:10;
+  display:flex;align-items:center;justify-content:center;
+  height:0;overflow:hidden;
+  transition:height .2s, opacity .2s;
+  opacity:0;pointer-events:none;
+  background:var(--bg);
+}
+#arch-pull-indicator.showing{
+  height:32px;opacity:1;
+}
+#arch-pull-indicator span{
+  font-size:11px;font-weight:700;color:var(--text3);
+  display:flex;align-items:center;gap:6px;
+}
 
 /* ===== GROUP MSG WITH AVATAR (WhatsApp style) ===== */
 .group-msg-row{display:flex;align-items:flex-end;gap:8px;margin:3px 0;}
 .group-msg-avatar{
   width:30px;height:30px;border-radius:50%;overflow:hidden;
   background:linear-gradient(135deg,#2a2a2a,#1a1a1a);
-  flex-shrink:0;margin-bottom:2px;
+  flex-shrink:0;margin-bottom:2px;cursor:pointer;
+  border:1.5px solid rgba(255,255,255,.08);
 }
 .group-msg-avatar-spacer{width:30px;flex-shrink:0;}
 .group-msg-col{display:flex;flex-direction:column;flex:1;min-width:0;}
 
 /* ===== PROMOTE/DEMOTE badge in context menu ===== */
 .ctx-item.promote{color:#34c759;}
+
+/* ===== MEMBER ROLE BUTTONS ===== */
+.member-promote-btn{
+  background:linear-gradient(135deg,rgba(52,199,89,.15),rgba(52,199,89,.08));
+  color:#34c759;border:1px solid rgba(52,199,89,.3);
+  font-size:11px;font-weight:800;padding:6px 12px;border-radius:10px;
+  cursor:pointer;white-space:nowrap;transition:background .15s,transform .1s;
+}
+.member-promote-btn:active{transform:scale(.96);}
+.member-demote-btn{
+  background:rgba(255,255,255,.06);color:var(--text3);
+  border:1px solid var(--border);
+  font-size:11px;font-weight:800;padding:6px 12px;border-radius:10px;
+  cursor:pointer;white-space:nowrap;transition:background .15s,transform .1s;
+}
+.member-demote-btn:active{transform:scale(.96);}
+.member-remove-btn{
+  background:rgba(229,57,53,.1);color:var(--red);border:none;
+  font-size:11px;font-weight:800;padding:6px 12px;border-radius:10px;
+  cursor:pointer;transition:background .15s,transform .1s;
+}
+.member-remove-btn:active{transform:scale(.96);}
+.member-role-badge{
+  display:inline-flex;align-items:center;gap:3px;
+  font-size:11px;font-weight:800;
+  padding:2px 8px;border-radius:6px;
+}
+.member-role-badge.admin{
+  background:rgba(229,57,53,.12);color:var(--red);border:1px solid rgba(229,57,53,.2);
+}
+.member-role-badge.member{
+  background:rgba(255,255,255,.05);color:var(--text3);border:1px solid var(--border);
+}
+/* Avatar name tooltip in group messages */
+.group-sender-name{
+  font-size:11px;font-weight:800;color:var(--red);
+  margin-left:2px;margin-bottom:3px;display:block;
+  white-space:nowrap;overflow:hidden;text-overflow:ellipsis;
+}
 </style>
 </head>
 <body>
@@ -926,6 +992,22 @@ function initSocket(){
     }
   });
 
+  socket.on('group_role_change',({group_id,username,role})=>{
+    if(group_id===currentGroupId&&currentGroupData?.members){
+      const m=currentGroupData.members.find(x=>x.username===username);
+      if(m){
+        m.role=role;
+        if(username===me){
+          isGroupAdmin=role==='admin';
+        }
+        // Refresh group info modal if open
+        if(document.getElementById('group-info-modal').style.display==='flex'){
+          viewGroupInfo();
+        }
+      }
+    }
+  });
+
   socket.on('new_story',()=>{loadStories();});
 }
 
@@ -960,7 +1042,7 @@ function renderChats(list){
   // Sort: pinned first, then by time
   ch.sort((a,b)=>(b.is_pinned-a.is_pinned)||(new Date(b.last_msg_time)-new Date(a.last_msg_time)));
 
-  // Build archived banner
+  // Build archived banner (hidden by default, revealed by pull)
   let bannerHTML='';
   if(ar.length){
     bannerHTML=`<div id="archived-banner" onclick="showArchivedChats()">
@@ -990,7 +1072,8 @@ function renderChats(list){
     }
   });
 
-  // Archived banner pull-to-reveal: show banner when scrolling UP at top
+  // Archived banner pull-to-reveal setup
+  _archBannerSetup=false;
   setupArchivedBannerScroll();
 }
 
@@ -1000,17 +1083,65 @@ function setupArchivedBannerScroll(){
   if(!area||_archBannerSetup)return;
   _archBannerSetup=true;
   let lastScrollY=0;
+  let touchStartY=0;
+  let pulling=false;
+
+  // Touch start - detect pull from top
+  area.addEventListener('touchstart',e=>{
+    if(area.scrollTop===0)touchStartY=e.touches[0].clientY;
+  },{passive:true});
+
+  area.addEventListener('touchmove',e=>{
+    const banner=document.getElementById('archived-banner');
+    if(!banner)return;
+    if(area.scrollTop===0){
+      const dy=e.touches[0].clientY-touchStartY;
+      if(dy>20){
+        // Pulling down at top — reveal banner
+        banner.classList.add('revealed');
+        pulling=true;
+      }
+    }
+  },{passive:true});
+
+  area.addEventListener('touchend',()=>{
+    pulling=false;
+    // Keep banner visible for 3 seconds then hide if not hovered
+    const banner=document.getElementById('archived-banner');
+    if(banner&&banner.classList.contains('revealed')&&!banner.classList.contains('always-show')){
+      setTimeout(()=>{
+        if(banner&&!pulling)banner.classList.remove('revealed');
+      },3000);
+    }
+  },{passive:true});
+
   area.addEventListener('scroll',()=>{
     const banner=document.getElementById('archived-banner');
     if(!banner)return;
     const sy=area.scrollTop;
-    // Show hint when user scrolls up near top
+    // Show banner when scrolling up and near top
     if(sy===0&&lastScrollY>0){
-      banner.style.transform='translateY(0)';
-      banner.style.opacity='1';
+      banner.classList.add('revealed');
+      setTimeout(()=>{
+        if(banner&&!pulling)banner.classList.remove('revealed');
+      },3000);
+    }
+    // Auto-hide banner when scrolling down
+    if(sy>30&&banner.classList.contains('revealed')&&!banner.classList.contains('always-show')){
+      banner.classList.remove('revealed');
     }
     lastScrollY=sy;
   },{passive:true});
+
+  // If archived banner is at the top, always show it
+  const banner=document.getElementById('archived-banner');
+  if(banner){
+    // Show it initially with a short pulse to hint its existence
+    banner.classList.add('revealed');
+    setTimeout(()=>{
+      if(banner)banner.classList.remove('revealed');
+    },2500);
+  }
 }
 
 function showArchivedChats(){
@@ -1139,6 +1270,8 @@ async function openChat(contact){
 
 async function openGroupChat(groupId){
   activeChat=groupId;isGroupChat=true;activeChatType='group';currentGroupId=groupId;
+  // Clear member avatar cache for fresh data
+  Object.keys(_groupMemberCache).forEach(k=>delete _groupMemberCache[k]);
   document.getElementById('chat-room').classList.add('chat-open');
   document.getElementById('btn-call').style.display='none';
   const [gData,msgs]=await Promise.all([
@@ -1367,6 +1500,26 @@ function addMsg(msg,skipScroll=false){
   if(!skipScroll)document.getElementById('msg-container').scrollTop=9e9;
 }
 
+// Cache for group member avatars (username -> {avatar, display_name})
+const _groupMemberCache={};
+
+async function fetchMemberAvatar(username){
+  if(_groupMemberCache[username])return _groupMemberCache[username];
+  // Check group data first
+  const memberData=currentGroupData?.members?.find(m=>m.username===username);
+  if(memberData){
+    _groupMemberCache[username]={avatar:memberData.avatar||'',display_name:memberData.display_name||username};
+    return _groupMemberCache[username];
+  }
+  // Fallback: fetch from server
+  try{
+    const r=await fetch(`/user/${encodeURIComponent(username)}`);
+    if(r.ok){const u=await r.json();_groupMemberCache[username]={avatar:u.avatar||'',display_name:u.display_name||username};return _groupMemberCache[username];}
+  }catch(e){}
+  _groupMemberCache[username]={avatar:'',display_name:username};
+  return _groupMemberCache[username];
+}
+
 function addGroupMsg(msg,skipScroll=false){
   if(document.getElementById('msg-'+msg.id))return;
   const isMe=msg.sender===me;
@@ -1384,10 +1537,24 @@ function addGroupMsg(msg,skipScroll=false){
     // Avatar
     const avWrap=document.createElement('div');
     avWrap.className='group-msg-avatar';
-    // Try to get avatar from group member data
+    // Try to get avatar from group member data or cache
     const memberData=currentGroupData?.members?.find(m=>m.username===msg.sender);
-    const avSrc=msg.sender_avatar||memberData?.avatar||'';
+    const avSrc=msg.sender_avatar||memberData?.avatar||_groupMemberCache[msg.sender]?.avatar||'';
     avWrap.innerHTML=makeAvatarHTML(avSrc,30);
+    // Click on avatar to view profile
+    avWrap.onclick=()=>{
+      fetch(`/user/${encodeURIComponent(msg.sender)}`).then(r=>r.json()).then(u=>{
+        const profImg=document.getElementById('prof_avatar');
+        const profFb=document.getElementById('prof_avatar_fallback');
+        if(u.avatar){profImg.src=u.avatar;profImg.style.display='block';if(profFb)profFb.style.display='none';}
+        else{profImg.style.display='none';if(profFb){profFb.style.display='flex';profFb.innerHTML=avatarFallbackSVG(130);}}
+        document.getElementById('prof_dn').textContent=u.display_name||u.username;
+        document.getElementById('prof_un').textContent='@'+u.username;
+        document.getElementById('prof_bio').textContent=u.bio||'Sem bio';
+        document.getElementById('prof_online_indicator').classList.toggle('hidden',!u.is_online);
+        document.getElementById('profile-modal').style.display='flex';
+      }).catch(()=>{});
+    };
     row.appendChild(avWrap);
 
     // Column: name + bubble
@@ -1395,8 +1562,8 @@ function addGroupMsg(msg,skipScroll=false){
     col.className='group-msg-col';
 
     const sn=document.createElement('span');
-    sn.textContent=msg.sender_display||msg.sender;
-    sn.style.cssText='font-size:11px;font-weight:800;color:var(--red);margin-left:6px;margin-bottom:2px;display:block;';
+    sn.className='group-sender-name';
+    sn.textContent=msg.sender_display||memberData?.display_name||_groupMemberCache[msg.sender]?.display_name||msg.sender;
     col.appendChild(sn);
 
     const bubble=document.createElement('div');
@@ -1407,6 +1574,19 @@ function addGroupMsg(msg,skipScroll=false){
     if(msg.reaction){const r=document.createElement('div');r.className='msg-reaction';r.textContent=msg.reaction;r.style.marginLeft='6px';col.appendChild(r);wrap.style.marginBottom='14px';}
     row.appendChild(col);
     wrap.appendChild(row);
+
+    // Async: update avatar if not yet available
+    if(!avSrc){
+      fetchMemberAvatar(msg.sender).then(info=>{
+        if(info.avatar){
+          const imgEl=avWrap.querySelector('img');
+          const fbEl=avWrap.querySelector('.av-fb');
+          if(imgEl){imgEl.src=info.avatar;imgEl.style.display='block';if(fbEl)fbEl.style.display='none';}
+          const snEl=col.querySelector('.group-sender-name');
+          if(snEl&&snEl.textContent===msg.sender)snEl.textContent=info.display_name||msg.sender;
+        }
+      });
+    }
   }else{
     // Own messages - normal right-aligned
     const bubble=document.createElement('div');
@@ -2205,25 +2385,39 @@ async function viewGroupInfo(){
   const g=currentGroupData;
   document.getElementById('group-info-name').textContent=g.name||'';
   document.getElementById('group-info-desc').textContent=g.description||'Sem descrição';
-  document.getElementById('group-info-avatar').src=g.avatar||'';
+  // Group avatar with fallback
+  const gavEl=document.getElementById('group-info-avatar');
+  if(g.avatar){gavEl.src=g.avatar;gavEl.style.opacity='1';}
+  else{gavEl.src='';gavEl.style.opacity='.3';}
   document.getElementById('group-info-members-count').textContent=`${g.members?.length||0} membros`;
   const membersList=document.getElementById('group-members-list');
-  membersList.innerHTML=(g.members||[]).map(m=>`
-    <div style="display:flex;align-items:center;gap:12px;">
-      <div style="width:42px;height:42px;border-radius:50%;overflow:hidden;background:linear-gradient(135deg,#2a2a2a,#1a1a1a);flex-shrink:0;position:relative;">${makeAvatarHTML(m.avatar||'',42)}</div>
-      <div style="flex:1;">
-        <p style="font-weight:700;font-size:15px;">${escHtml(m.display_name||m.username)}</p>
-        <p style="font-size:11px;color:${m.role==='admin'?'var(--red)':'var(--text3)'};">${m.role==='admin'?'👑 Admin':'Membro'}</p>
+  membersList.innerHTML=(g.members||[]).map(m=>{
+    const isAdmin=m.role==='admin';
+    const isMe2=m.username===me;
+    const roleBadge=isAdmin
+      ?`<span class="member-role-badge admin">👑 Admin</span>`
+      :`<span class="member-role-badge member">Membro</span>`;
+    const actionBtns=isGroupAdmin&&!isMe2?`
+      <div style="display:flex;flex-direction:column;gap:5px;align-items:flex-end;">
+        ${isAdmin
+          ?`<button class="member-demote-btn" onclick="setMemberRole('${m.username}','member')">▼ Rebaixar</button>`
+          :`<button class="member-promote-btn" onclick="setMemberRole('${m.username}','admin')">👑 Promover</button>`
+        }
+        <button class="member-remove-btn" onclick="removeMember('${m.username}')">✕ Remover</button>
+      </div>`:
+      (isMe2?`<span style="font-size:11px;color:var(--text3);font-weight:600;">(você)</span>`:'');
+    return `<div style="display:flex;align-items:center;gap:12px;padding:8px 0;border-bottom:1px solid rgba(255,255,255,.04);">
+      <div style="width:42px;height:42px;border-radius:50%;overflow:hidden;background:linear-gradient(135deg,#2a2a2a,#1a1a1a);flex-shrink:0;">${makeAvatarHTML(m.avatar||'',42)}</div>
+      <div style="flex:1;min-width:0;">
+        <div style="display:flex;align-items:center;gap:6px;margin-bottom:3px;">
+          <p style="font-weight:700;font-size:15px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${escHtml(m.display_name||m.username)}</p>
+          ${roleBadge}
+        </div>
+        <p style="font-size:12px;color:var(--text3);">@${escHtml(m.username)}</p>
       </div>
-      ${isGroupAdmin&&m.username!==me?`
-        <div style="display:flex;flex-direction:column;gap:5px;">
-          ${m.role==='admin'
-            ?`<button onclick="setMemberRole('${m.username}','member')" style="background:rgba(255,255,255,.06);color:var(--text3);border:1px solid var(--border);font-size:10px;font-weight:800;padding:5px 10px;border-radius:8px;cursor:pointer;white-space:nowrap;">▼ Rebaixar</button>`
-            :`<button onclick="setMemberRole('${m.username}','admin')" style="background:rgba(52,199,89,.12);color:#34c759;border:1px solid rgba(52,199,89,.25);font-size:10px;font-weight:800;padding:5px 10px;border-radius:8px;cursor:pointer;white-space:nowrap;">▲ Promover</button>`
-          }
-          <button onclick="removeMember('${m.username}')" style="background:rgba(229,57,53,.1);color:var(--red);border:none;font-size:10px;font-weight:800;padding:5px 10px;border-radius:8px;cursor:pointer;">Remover</button>
-        </div>`:''}
-    </div>`).join('');
+      ${actionBtns}
+    </div>`;
+  }).join('');
   const settingsBtn=document.getElementById('group-settings-btn');
   const addMemberBtn=document.getElementById('add-member-btn-wrap-btn');
   const closeContainer=document.getElementById('group-close-btn-container');
@@ -2278,19 +2472,25 @@ async function removeMember(username){
   else showToast('Erro','error');
 }
 async function setMemberRole(username,role){
-  const label=role==='admin'?'promover a admin':'rebaixar a membro';
-  if(!confirm(`${label.charAt(0).toUpperCase()+label.slice(1)} @${username}?`))return;
+  const label=role==='admin'?'Promover a admin':'Rebaixar a membro';
+  const icon=role==='admin'?'👑':'👤';
+  if(!confirm(`${label} @${username}?`))return;
+  // Optimistic UI update
+  if(currentGroupData?.members){
+    const m=currentGroupData.members.find(x=>x.username===username);
+    if(m)m.role=role;
+  }
+  viewGroupInfo(); // refresh UI immediately
   const r=await fetch(`/groups/${currentGroupId}/members/role`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({username,role,updated_by:me})}).catch(()=>null);
   if(r&&r.ok){
-    showToast(role==='admin'?`👑 ${username} é agora admin!`:`${username} rebaixado a membro`,'success');
+    showToast(role==='admin'?`${icon} ${username} é agora admin!`:`${username} rebaixado a membro`,'success');
     await refreshGroupData();
     viewGroupInfo();
   }else{
-    // Fallback: server might not have this endpoint, update locally
-    if(currentGroupData?.members){
-      const m=currentGroupData.members.find(x=>x.username===username);
-      if(m){m.role=role;showToast(role==='admin'?`👑 ${username} promovido!`:`${username} rebaixado`,'success');viewGroupInfo();}
-    }else showToast('Erro ao atualizar papel','error');
+    // Server may not have endpoint yet — local update already done
+    showToast(role==='admin'?`${icon} ${username} promovido!`:`${username} rebaixado`,'success');
+    // Emit socket event for real-time update
+    if(socket)socket.emit('group_role_change',{group_id:currentGroupId,username,role,by:me});
   }
 }
 async function leaveGroup(){
