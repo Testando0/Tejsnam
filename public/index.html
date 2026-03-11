@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no,viewport-fit=cover">
-<title>Tejsnam</title>
+<title>REDSPACE</title>
 <script src="https://cdn.tailwindcss.com"></script>
 <script src="/socket.io/socket.io.js"></script>
 <style>
@@ -184,6 +184,88 @@ img[src=""]{display:none;}
 
 /* Avatar in story ring with fallback */
 .story-ring-avatar{position:relative;width:58px;height:58px;border-radius:50%;overflow:hidden;border:2.5px solid var(--bg);}
+
+/* ===== BOTTOM NAV TABS (Chats / Status / Perfil) ===== */
+.nav-pill{display:flex;flex-direction:column;align-items:center;gap:4px;padding:6px 18px;border-radius:16px;transition:background .2s;cursor:pointer;border:none;background:none;}
+
+/* ===== STATUS TAB (WhatsApp iOS style) ===== */
+#tab-status{flex:1;overflow-y:auto;overflow-x:hidden;}
+.status-my-card{
+  display:flex;align-items:center;gap:14px;
+  padding:14px 20px;border-bottom:1px solid var(--border);
+  cursor:pointer;background:var(--bg);transition:background .15s;
+}
+.status-my-card:active{background:var(--bg3);}
+.status-section-label{
+  font-size:11px;font-weight:800;color:var(--text3);
+  letter-spacing:1.5px;text-transform:uppercase;
+  padding:16px 20px 8px;
+}
+.status-contact-row{
+  display:flex;align-items:center;gap:14px;
+  padding:10px 20px;cursor:pointer;
+  transition:background .15s;
+  border-bottom:1px solid rgba(255,255,255,.03);
+}
+.status-contact-row:active{background:var(--bg3);}
+.status-ring{
+  width:54px;height:54px;border-radius:50%;padding:2.5px;
+  background:conic-gradient(#e53935,#ff5252,#e53935);
+  flex-shrink:0;position:relative;
+}
+.status-ring.seen{background:var(--bg4);}
+.status-ring-inner{
+  width:100%;height:100%;border-radius:50%;overflow:hidden;
+  border:2.5px solid var(--bg);background:var(--bg3);
+  display:flex;align-items:center;justify-content:center;
+}
+.status-add-btn{
+  width:54px;height:54px;border-radius:50%;position:relative;flex-shrink:0;
+}
+.status-add-overlay{
+  position:absolute;bottom:-2px;right:-2px;
+  width:22px;height:22px;border-radius:50%;
+  background:var(--red);border:2.5px solid var(--bg);
+  display:flex;align-items:center;justify-content:center;
+  z-index:2;
+}
+
+/* ===== ARCHIVED BANNER (Telegram style) ===== */
+#archived-banner{
+  display:flex;align-items:center;gap:12px;
+  padding:14px 20px;
+  background:linear-gradient(135deg,rgba(229,57,53,.08),rgba(183,28,28,.05));
+  border-bottom:2px solid var(--border);
+  cursor:pointer;overflow:hidden;
+  transition:background .2s;
+  will-change:transform;
+}
+#archived-banner:active{background:rgba(229,57,53,.12);}
+#archived-banner.hidden{display:none!important;}
+.arch-icon{
+  width:46px;height:46px;border-radius:14px;
+  background:rgba(229,57,53,.12);border:1px solid rgba(229,57,53,.2);
+  display:flex;align-items:center;justify-content:center;flex-shrink:0;
+}
+.arch-pull-hint{
+  font-size:10px;font-weight:700;color:var(--text3);
+  letter-spacing:.5px;text-align:center;
+  padding:6px 0;
+  transition:opacity .3s;
+}
+
+/* ===== GROUP MSG WITH AVATAR (WhatsApp style) ===== */
+.group-msg-row{display:flex;align-items:flex-end;gap:8px;margin:3px 0;}
+.group-msg-avatar{
+  width:30px;height:30px;border-radius:50%;overflow:hidden;
+  background:linear-gradient(135deg,#2a2a2a,#1a1a1a);
+  flex-shrink:0;margin-bottom:2px;
+}
+.group-msg-avatar-spacer{width:30px;flex-shrink:0;}
+.group-msg-col{display:flex;flex-direction:column;flex:1;min-width:0;}
+
+/* ===== PROMOTE/DEMOTE badge in context menu ===== */
+.ctx-item.promote{color:#34c759;}
 </style>
 </head>
 <body>
@@ -193,7 +275,7 @@ img[src=""]{display:none;}
   <div class="pulse" style="width:88px;height:88px;background:linear-gradient(135deg,#e53935,#b71c1c);border-radius:28px;display:flex;align-items:center;justify-content:center;margin-bottom:28px;box-shadow:0 20px 60px rgba(229,57,53,.3);">
     <svg width="52" height="52" viewBox="0 0 100 100" fill="none"><path d="M88 12L18 50L88 88L68 50Z" fill="white" opacity=".9"/><path d="M68 50L38 70L48 50Z" fill="#b71c1c"/></svg>
   </div>
-  <h1 style="font-size:32px;font-weight:900;letter-spacing:-1px;margin-bottom:6px;">Tejsnam <span style="color:var(--red)">2026</span></h1>
+  <h1 style="font-size:32px;font-weight:900;letter-spacing:-1px;margin-bottom:6px;">REDSPACE <span style="color:var(--red)">2026</span></h1>
   <p style="color:var(--text3);font-size:11px;letter-spacing:3px;text-transform:uppercase;margin-bottom:36px;">Premium Messenger</p>
   <div style="width:100%;max-width:340px;display:flex;flex-direction:column;gap:12px;">
     <div style="position:relative;">
@@ -215,7 +297,7 @@ img[src=""]{display:none;}
         <svg style="width:26px;height:26px;" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="2"><path d="M18 9v3m0 0v3m0-3h3m-3 0h-3m-2-5a4 4 0 11-8 0 4 4 0 018 0zM3 20a6 6 0 0112 0v1H3v-1z"/></svg>
         <span id="fr-badge" style="display:none;position:absolute;top:-3px;right:-3px;background:var(--red);color:#fff;font-size:9px;font-weight:900;min-width:16px;height:16px;border-radius:8px;align-items:center;justify-content:center;padding:0 3px;"></span>
       </button>
-      <h1 style="font-size:20px;font-weight:800;letter-spacing:-.4px;">Tejsnam</h1>
+      <h1 style="font-size:20px;font-weight:800;letter-spacing:-.4px;">REDSPACE</h1>
       <div style="display:flex;align-items:center;gap:2px;">
         <button onclick="document.getElementById('new-group-modal').style.display='flex'" style="color:var(--red);background:none;border:none;cursor:pointer;padding:6px;">
           <svg style="width:24px;height:24px;" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="2"><path d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0z"/></svg>
@@ -229,32 +311,23 @@ img[src=""]{display:none;}
       <input id="search-input" placeholder="🔍  Buscar conversas..." style="width:100%;background:var(--bg3);border:1px solid var(--border);border-radius:14px;padding:9px 14px;color:var(--text);font-size:15px;outline:none;transition:border-color .2s;" oninput="filterChats(this.value)" onfocus="this.style.borderColor='var(--red)'" onblur="this.style.borderColor='var(--border)'">
     </div>
   </header>
-  <!-- Stories -->
-  <div id="stories-container" style="background:var(--bg);border-bottom:1px solid var(--border);display:flex;gap:14px;padding:12px 16px;overflow-x:auto;flex-shrink:0;scrollbar-width:none;">
-    <div style="display:flex;flex-direction:column;align-items:center;gap:6px;flex-shrink:0;">
-      <div style="display:flex;gap:8px;">
-        <div onclick="document.getElementById('story_input').click()" style="width:52px;height:52px;border-radius:50%;background:var(--bg3);border:2px dashed rgba(255,255,255,.15);display:flex;align-items:center;justify-content:center;cursor:pointer;">
-          <svg style="width:22px;height:22px;color:var(--text3);" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="2"><path d="M3 9a2 2 0 012-2h.93a2 2 0 001.664-.89l.812-1.22A2 2 0 0110.07 4h3.86a2 2 0 011.664.89l.812 1.22A2 2 0 0018.07 7H19a2 2 0 012 2v9a2 2 0 01-2 2H5a2 2 0 01-2-2V9z"/><circle cx="12" cy="13" r="3" stroke-width="2"/></svg>
-        </div>
-        <div onclick="openTextStory()" style="width:52px;height:52px;border-radius:50%;background:var(--bg3);border:2px dashed rgba(255,255,255,.15);display:flex;align-items:center;justify-content:center;cursor:pointer;">
-          <svg style="width:22px;height:22px;color:var(--text3);" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="2"><path d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"/></svg>
-        </div>
-      </div>
-      <span style="font-size:9px;font-weight:700;color:var(--text3);">Status</span>
-    </div>
-    <div id="stories-list" style="display:flex;gap:14px;"></div>
-  </div>
+  <!-- Stories strip REMOVED - now in Status tab -->
   <!-- Content -->
-  <div style="flex:1;overflow-y:auto;overflow-x:hidden;">
+  <div style="flex:1;overflow-y:auto;overflow-x:hidden;" id="main-content-area">
     <div id="tab-chats"></div>
+    <div id="tab-status" class="hidden"></div>
     <div id="tab-archived" class="hidden"></div>
     <div id="tab-settings" class="hidden"></div>
   </div>
-  <!-- Bottom Nav -->
+  <!-- Bottom Nav - 3 tabs -->
   <nav class="glass safe-b" style="background:rgba(9,9,9,.95);border-top:1px solid var(--border);display:flex;justify-content:space-around;padding:6px 0;flex-shrink:0;">
     <button onclick="switchTab('chats')" id="btn-tab-chats" class="nav-pill" style="background:rgba(229,57,53,.12);">
       <svg style="width:26px;height:26px;color:var(--red);" fill="currentColor" viewBox="0 0 24 24"><path d="M20 2H4c-1.1 0-2 .9-2 2v18l4-4h14c1.1 0 2-.9 2-2V4c0-1.1-.9-2-2-2z"/></svg>
       <span style="font-size:10px;font-weight:800;text-transform:uppercase;color:var(--red);">Chats</span>
+    </button>
+    <button onclick="switchTab('status')" id="btn-tab-status" class="nav-pill">
+      <svg style="width:26px;height:26px;color:var(--text3);" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="2"><circle cx="12" cy="12" r="10"/><path d="M12 8v4l3 3"/></svg>
+      <span style="font-size:10px;font-weight:800;text-transform:uppercase;color:var(--text3);">Status</span>
     </button>
     <button onclick="switchTab('settings')" id="btn-tab-settings" class="nav-pill">
       <svg style="width:26px;height:26px;color:var(--text3);" fill="currentColor" viewBox="0 0 24 24"><path d="M12 12c2.21 0 4-1.79 4-4s-1.79-4-4-4-4 1.79-4 4 1.79 4 4 4zm0 2c-2.67 0-8 1.34-8 4v2h16v-2c0-2.66-5.33-4-8-4z"/></svg>
@@ -886,9 +959,26 @@ function renderChats(list){
   list.forEach(c=>c.is_archived?ar.push(c):ch.push(c));
   // Sort: pinned first, then by time
   ch.sort((a,b)=>(b.is_pinned-a.is_pinned)||(new Date(b.last_msg_time)-new Date(a.last_msg_time)));
-  if(!ch.length){tab.innerHTML='<p style="text-align:center;color:var(--text3);padding:60px 20px;font-size:15px;">Nenhuma conversa</p>';return;}
-  tab.innerHTML=ch.map(c=>chatRow(c)).join('');
+
+  // Build archived banner
+  let bannerHTML='';
+  if(ar.length){
+    bannerHTML=`<div id="archived-banner" onclick="showArchivedChats()">
+      <div class="arch-icon">
+        <svg width="22" height="22" fill="none" stroke="var(--red)" viewBox="0 0 24 24" stroke-width="2"><path d="M21 8v13H3V8M1 3h22v5H1zM10 12h4"/></svg>
+      </div>
+      <div style="flex:1;">
+        <p style="font-weight:800;font-size:15px;">Arquivadas</p>
+        <p style="font-size:12px;color:var(--text3);margin-top:1px;">${ar.length} conversa${ar.length!==1?'s':''}</p>
+      </div>
+      <svg width="16" height="16" fill="none" stroke="var(--text3)" viewBox="0 0 24 24" stroke-width="2"><path d="M9 18l6-6-6-6"/></svg>
+    </div>`;
+  }
+
+  if(!ch.length&&!ar.length){tab.innerHTML='<p style="text-align:center;color:var(--text3);padding:60px 20px;font-size:15px;">Nenhuma conversa</p>';return;}
+  tab.innerHTML=bannerHTML+(ch.length?ch.map(c=>chatRow(c)).join(''):'');
   arch.innerHTML=ar.length?ar.map(c=>chatRow(c)).join(''):'<p style="text-align:center;color:var(--text3);padding:60px 20px;font-size:15px;">Nenhuma conversa arquivada</p>';
+
   ch.concat(ar).forEach(c=>{
     const id=c.isGroup?c.group_id:c.contact;
     const el=document.getElementById('row-'+id);
@@ -899,6 +989,62 @@ function renderChats(list){
       el.addEventListener('mouseup',chatRowPressEnd);
     }
   });
+
+  // Archived banner pull-to-reveal: show banner when scrolling UP at top
+  setupArchivedBannerScroll();
+}
+
+let _archBannerSetup=false;
+function setupArchivedBannerScroll(){
+  const area=document.getElementById('main-content-area');
+  if(!area||_archBannerSetup)return;
+  _archBannerSetup=true;
+  let lastScrollY=0;
+  area.addEventListener('scroll',()=>{
+    const banner=document.getElementById('archived-banner');
+    if(!banner)return;
+    const sy=area.scrollTop;
+    // Show hint when user scrolls up near top
+    if(sy===0&&lastScrollY>0){
+      banner.style.transform='translateY(0)';
+      banner.style.opacity='1';
+    }
+    lastScrollY=sy;
+  },{passive:true});
+}
+
+function showArchivedChats(){
+  // Toggle archived panel inside same tab
+  const tab=document.getElementById('tab-chats');
+  const arch=document.getElementById('tab-archived');
+  if(arch.classList.contains('hidden')){
+    arch.classList.remove('hidden');
+    tab.style.display='none';
+    // Back button header
+    const hdr=document.getElementById('main-header');
+    hdr.dataset.prevState='chats';
+    document.querySelector('#main-header h1').textContent='Arquivadas';
+    // Add back button temporarily
+    let backBtn=document.getElementById('arch-back-btn');
+    if(!backBtn){
+      backBtn=document.createElement('button');
+      backBtn.id='arch-back-btn';
+      backBtn.innerHTML='<svg width="26" height="26" fill="none" stroke="var(--red)" viewBox="0 0 24 24" stroke-width="2.5"><path d="M15 19l-7-7 7-7"/></svg>';
+      backBtn.style.cssText='background:none;border:none;cursor:pointer;padding:4px;color:var(--red);';
+      backBtn.onclick=hideArchivedChats;
+      hdr.querySelector('div').prepend(backBtn);
+    }
+    backBtn.style.display='block';
+  }else{
+    hideArchivedChats();
+  }
+}
+function hideArchivedChats(){
+  document.getElementById('tab-archived')?.classList.add('hidden');
+  document.getElementById('tab-chats').style.display='';
+  document.querySelector('#main-header h1').textContent='REDSPACE';
+  const backBtn=document.getElementById('arch-back-btn');
+  if(backBtn)backBtn.style.display='none';
 }
 function chatRow(c){
   const isG=c.isGroup||!!c.group_id;
@@ -1229,15 +1375,57 @@ function addGroupMsg(msg,skipScroll=false){
   wrap.style.cssText=`display:flex;flex-direction:column;align-items:${isMe?'flex-end':'flex-start'};margin:2px 0;position:relative;`;
 
   if(!isMe){
+    // Row with avatar + bubble column (WhatsApp style)
+    const row=document.createElement('div');
+    row.className='group-msg-row';
+    row.style.alignSelf='flex-start';
+    row.style.maxWidth='88%';
+
+    // Avatar
+    const avWrap=document.createElement('div');
+    avWrap.className='group-msg-avatar';
+    // Try to get avatar from group member data
+    const memberData=currentGroupData?.members?.find(m=>m.username===msg.sender);
+    const avSrc=msg.sender_avatar||memberData?.avatar||'';
+    avWrap.innerHTML=makeAvatarHTML(avSrc,30);
+    row.appendChild(avWrap);
+
+    // Column: name + bubble
+    const col=document.createElement('div');
+    col.className='group-msg-col';
+
     const sn=document.createElement('span');
-    sn.textContent=msg.sender;
-    sn.style.cssText='font-size:11px;font-weight:800;color:var(--red);margin-left:6px;margin-bottom:2px;';
-    wrap.appendChild(sn);
+    sn.textContent=msg.sender_display||msg.sender;
+    sn.style.cssText='font-size:11px;font-weight:800;color:var(--red);margin-left:6px;margin-bottom:2px;display:block;';
+    col.appendChild(sn);
+
+    const bubble=document.createElement('div');
+    bubble.className='msg-bubble msg-them';
+    _fillGroupBubble(bubble,msg);
+    col.appendChild(bubble);
+
+    if(msg.reaction){const r=document.createElement('div');r.className='msg-reaction';r.textContent=msg.reaction;r.style.marginLeft='6px';col.appendChild(r);wrap.style.marginBottom='14px';}
+    row.appendChild(col);
+    wrap.appendChild(row);
+  }else{
+    // Own messages - normal right-aligned
+    const bubble=document.createElement('div');
+    bubble.className='msg-bubble msg-me';
+    _fillGroupBubble(bubble,msg);
+    if(msg.reaction){const r=document.createElement('div');r.className='msg-reaction';r.textContent=msg.reaction;wrap.style.marginBottom='14px';wrap.appendChild(r);}
+    wrap.appendChild(bubble);
   }
 
-  const bubble=document.createElement('div');
-  bubble.className='msg-bubble '+(isMe?'msg-me':'msg-them');
+  wrap.addEventListener('touchstart',e=>msgPressStart(e,msg.id,true),{passive:true});
+  wrap.addEventListener('touchend',msgPressEnd);
+  wrap.addEventListener('mousedown',e=>msgPressStart(e,msg.id,true));
+  wrap.addEventListener('mouseup',msgPressEnd);
 
+  document.getElementById('msg-container').appendChild(wrap);
+  if(!skipScroll)document.getElementById('msg-container').scrollTop=9e9;
+}
+
+function _fillGroupBubble(bubble,msg){
   const src=msg.content||'';
   if(msg.type==='image'){
     const img=document.createElement('img');
@@ -1255,26 +1443,14 @@ function addGroupMsg(msg,skipScroll=false){
     bubble.appendChild(v);
     if(msg.caption){const cap=document.createElement('p');cap.textContent=msg.caption;cap.style.marginTop='6px';bubble.appendChild(cap);}
   }else if(msg.type==='audio'){
-    bubble.appendChild(createAudioBubble(src,isMe));
+    bubble.appendChild(createAudioBubble(src,msg.sender===me));
   }else{
     const p=document.createElement('p');p.textContent=src;bubble.appendChild(p);
   }
-
   const meta=document.createElement('div');
   meta.style.cssText='font-size:10.5px;font-weight:600;color:rgba(255,255,255,.4);margin-top:4px;';
   meta.textContent=formatTime(msg.time);
   bubble.appendChild(meta);
-
-  if(msg.reaction){const r=document.createElement('div');r.className='msg-reaction';r.textContent=msg.reaction;wrap.style.marginBottom='14px';wrap.appendChild(r);}
-  wrap.appendChild(bubble);
-
-  wrap.addEventListener('touchstart',e=>msgPressStart(e,msg.id,true),{passive:true});
-  wrap.addEventListener('touchend',msgPressEnd);
-  wrap.addEventListener('mousedown',e=>msgPressStart(e,msg.id,true));
-  wrap.addEventListener('mouseup',msgPressEnd);
-
-  document.getElementById('msg-container').appendChild(wrap);
-  if(!skipScroll)document.getElementById('msg-container').scrollTop=9e9;
 }
 
 // ====== SEND ======
@@ -1438,11 +1614,12 @@ function closeLightbox(){
 
 // ====== TAB SWITCH ======
 function switchTab(tab){
-  ['chats','settings'].forEach(t=>{
+  const tabs=['chats','status','settings'];
+  tabs.forEach(t=>{
     const btn=document.getElementById('btn-tab-'+t);
     const content=document.getElementById('tab-'+t);
     const isActive=t===tab;
-    if(content){content.classList.toggle('hidden',!isActive);}
+    if(content)content.classList.toggle('hidden',!isActive);
     if(btn){
       btn.style.background=isActive?'rgba(229,57,53,.12)':'none';
       const icon=btn.querySelector('svg');const label=btn.querySelector('span');
@@ -1450,9 +1627,109 @@ function switchTab(tab){
       if(label)label.style.color=isActive?'var(--red)':'var(--text3)';
     }
   });
+  // archived tab hidden via tab-archived div inside tab-chats area
+  document.getElementById('tab-archived')?.classList.add('hidden');
   document.getElementById('search-bar-wrap').style.display=tab==='chats'?'block':'none';
   if(tab==='settings')buildSettings();
-  document.getElementById('stories-container').style.display=tab==='chats'?'flex':'none';
+  if(tab==='status')buildStatusTab();
+  // Header title
+  const titles={chats:'REDSPACE',status:'Status',settings:'Perfil'};
+  document.querySelector('#main-header h1').textContent=titles[tab]||'REDSPACE';
+}
+
+// ====== STATUS TAB ======
+async function buildStatusTab(){
+  const tab=document.getElementById('tab-status');
+  if(!tab)return;
+  tab.innerHTML='<div style="text-align:center;padding:40px;color:var(--text3);font-size:14px;">Carregando...</div>';
+  const r=await fetch(`/stories?viewer=${me}`).catch(()=>null);
+  if(!r||!r.ok){tab.innerHTML='<div style="text-align:center;padding:40px;color:var(--text3);">Erro ao carregar</div>';return;}
+  const groups=await r.json();
+
+  // My status section
+  const myGroup=groups.find(g=>g.username===me);
+  const others=groups.filter(g=>g.username!==me);
+  const unseenOthers=others.filter(g=>!g.stories.every(s=>(s.viewers||[]).includes(me)));
+  const seenOthers=others.filter(g=>g.stories.every(s=>(s.viewers||[]).includes(me)));
+
+  let html=`
+  <!-- My status card -->
+  <div class="status-my-card" onclick="${myGroup?`viewUserStories(window._statusGroups,window._statusGroups.findIndex(g=>g.username==='${me}'))`:'openStatusCreate()'}">
+    <div class="status-add-btn" style="position:relative;width:54px;height:54px;">
+      ${myGroup?`<div class="status-ring" style="width:54px;height:54px;padding:2.5px;"><div class="status-ring-inner">${makeAvatarHTML(myAvatar,46)}</div></div>`
+        :`<div style="width:54px;height:54px;border-radius:50%;overflow:hidden;background:linear-gradient(135deg,#2a2a2a,#1a1a1a);">${makeAvatarHTML(myAvatar,54)}</div>`}
+      <div class="status-add-overlay">
+        <svg width="12" height="12" fill="none" stroke="#fff" viewBox="0 0 24 24" stroke-width="3"><path d="M12 5v14M5 12h14"/></svg>
+      </div>
+    </div>
+    <div style="flex:1;overflow:hidden;">
+      <p style="font-weight:800;font-size:16px;">Meu Status</p>
+      <p style="font-size:13px;color:var(--text3);margin-top:2px;">${myGroup?`${myGroup.stories.length} atualização${myGroup.stories.length!==1?'s':''}  • Toque para ver`:'Toque para adicionar atualização'}</p>
+    </div>
+    <div style="display:flex;gap:10px;align-items:center;">
+      <button onclick="event.stopPropagation();document.getElementById('story_input').click()" style="background:rgba(229,57,53,.12);border:1px solid rgba(229,57,53,.25);color:var(--red);padding:7px 12px;border-radius:12px;font-size:13px;font-weight:800;cursor:pointer;white-space:nowrap;">
+        <svg width="14" height="14" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="2.5" style="display:inline;vertical-align:-2px;margin-right:4px;"><path d="M3 9a2 2 0 012-2h.93a2 2 0 001.664-.89l.812-1.22A2 2 0 0110.07 4h3.86a2 2 0 011.664.89l.812 1.22A2 2 0 0018.07 7H19a2 2 0 012 2v9a2 2 0 01-2 2H5a2 2 0 01-2-2V9z"/><circle cx="12" cy="13" r="3"/></svg>Foto
+      </button>
+      <button onclick="event.stopPropagation();openTextStory()" style="background:var(--bg3);border:1px solid var(--border);color:var(--text2);padding:7px 12px;border-radius:12px;font-size:13px;font-weight:800;cursor:pointer;white-space:nowrap;">
+        <svg width="14" height="14" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="2.5" style="display:inline;vertical-align:-2px;margin-right:4px;"><path d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"/></svg>Texto
+      </button>
+    </div>
+  </div>`;
+
+  if(unseenOthers.length){
+    html+=`<div class="status-section-label">Recentes</div>`;
+    html+=unseenOthers.map(g=>statusContactRow(g,false)).join('');
+  }
+  if(seenOthers.length){
+    html+=`<div class="status-section-label">Visualizados</div>`;
+    html+=seenOthers.map(g=>statusContactRow(g,true)).join('');
+  }
+  if(!others.length){
+    html+=`<div style="text-align:center;padding:48px 24px;"><div style="font-size:48px;margin-bottom:16px;">👀</div><p style="font-weight:800;font-size:18px;margin-bottom:8px;">Nenhum status ainda</p><p style="color:var(--text3);font-size:14px;">Quando seus contatos postarem status, aparecerão aqui.</p></div>`;
+  }
+
+  tab.innerHTML=html;
+  window._statusGroups=groups;
+  // Bind clicks
+  tab.querySelectorAll('.status-contact-row[data-idx]').forEach(el=>{
+    el.onclick=()=>{
+      const idx=parseInt(el.dataset.idx);
+      viewUserStories(window._statusGroups,idx);
+    };
+  });
+}
+
+function openStatusCreate(){
+  // Show options to pick photo or text
+  document.getElementById('story_input').click();
+}
+
+function statusContactRow(group,seen){
+  const lastStory=group.stories[group.stories.length-1];
+  const timeStr=lastStory?formatDate(lastStory.time):'';
+  const count=group.stories.length;
+  const globalIdx=(window._statusGroups||[]).findIndex(g=>g.username===group.username);
+
+  // Build mini preview thumb
+  let previewHTML='';
+  if(lastStory&&lastStory.type==='image'&&lastStory.content){
+    previewHTML=`<img src="${escHtml(lastStory.content)}" style="width:100%;height:100%;object-fit:cover;" onerror="this.style.display='none'">`;
+  }else if(lastStory&&lastStory.type==='text'){
+    const bg=lastStory.bg_color||'#e53935';
+    previewHTML=`<div style="width:100%;height:100%;background:${escHtml(bg)};display:flex;align-items:center;justify-content:center;padding:4px;"><span style="font-size:8px;font-weight:900;color:#fff;text-align:center;word-break:break-word;">${escHtml((lastStory.content||'').substring(0,15))}</span></div>`;
+  }else{
+    previewHTML=makeAvatarHTML(group.avatar||'',50);
+  }
+
+  return `<div class="status-contact-row" data-idx="${globalIdx}">
+    <div class="status-ring${seen?' seen':''}" style="width:54px;height:54px;padding:2.5px;flex-shrink:0;">
+      <div class="status-ring-inner">${previewHTML}</div>
+    </div>
+    <div style="flex:1;overflow:hidden;">
+      <p style="font-weight:800;font-size:15px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${escHtml(group.display_name||group.username)}</p>
+      <p style="font-size:12px;color:var(--text3);margin-top:2px;">${timeStr} · ${count} atualização${count!==1?'s':''}</p>
+    </div>
+  </div>`;
 }
 
 // ====== CHAT SETTINGS ======
@@ -1527,7 +1804,7 @@ function buildSettings(){
   </div>
   <div style="padding:14px 20px 8px;"><span style="font-size:10px;font-weight:900;color:var(--text3);letter-spacing:2px;text-transform:uppercase;">Sobre</span></div>
   <div style="padding:0 20px 24px;color:var(--text3);font-size:13px;line-height:1.7;">
-    <p style="font-size:18px;font-weight:900;color:var(--text);margin-bottom:4px;">Tejsnam 2026</p>
+    <p style="font-size:18px;font-weight:900;color:var(--text);margin-bottom:4px;">REDSPACE 2026</p>
     <p>Versão 3.0 — Premium Messenger</p>
   </div>
   <div style="padding:0 14px 24px;">
@@ -1633,48 +1910,15 @@ function makeAvatarHTML(src, size=42, extraStyle=''){
 
 // ====== STORIES ======
 async function loadStories(){
+  // Stories are now shown in Status tab only — just refresh if currently on status tab
+  const statusTab=document.getElementById('tab-status');
+  if(statusTab&&!statusTab.classList.contains('hidden')){
+    buildStatusTab();
+  }
+  // Also cache groups for use elsewhere
   const r=await fetch(`/stories?viewer=${me}`).catch(()=>null);
   if(!r||!r.ok)return;
-  const d=await r.json();
-  const list=document.getElementById('stories-list');
-  list.innerHTML='';
-  d.forEach(group=>{
-    const seen=group.stories.every(s=>(s.viewers||[]).includes(me));
-    const lastStory=group.stories[group.stories.length-1];
-    const wrap=document.createElement('div');
-    wrap.className='story-thumb-wrap';
-    wrap.style.cssText='display:flex;flex-direction:column;align-items:center;gap:6px;';
-    // Build ring gradient
-    const ringStyle=seen
-      ?'background:var(--bg4);'
-      :'background:conic-gradient(#e53935,#ff5252,#e53935);';
-    // Build inner preview
-    let innerContent='';
-    if(lastStory&&lastStory.type==='image'&&lastStory.content){
-      innerContent=`<img src="${escHtml(lastStory.content)}" style="width:100%;height:100%;object-fit:cover;border-radius:50%;" onerror="this.style.display='none'">`;
-    }else if(lastStory&&lastStory.type==='text'){
-      const bg=lastStory.bg_color||'#e53935';
-      const txt=(lastStory.content||'').substring(0,20);
-      innerContent=`<div style="width:100%;height:100%;border-radius:50%;background:${escHtml(bg)};display:flex;align-items:center;justify-content:center;padding:6px;"><span style="font-size:9px;font-weight:900;color:#fff;text-align:center;line-height:1.1;overflow:hidden;word-break:break-word;">${escHtml(txt)}</span></div>`;
-    }else{
-      // Fallback to avatar
-      if(group.avatar){innerContent=`<img src="${escHtml(group.avatar)}" style="width:100%;height:100%;object-fit:cover;border-radius:50%;" onerror="this.style.display='none'">`;}
-    }
-    // Check if current user's own stories
-    const isOwn=group.username===me;
-    wrap.innerHTML=`
-      <div style="width:66px;height:66px;border-radius:50%;padding:2.5px;${ringStyle}flex-shrink:0;cursor:pointer;transition:transform .2s;">
-        <div style="width:100%;height:100%;border-radius:50%;overflow:hidden;border:2.5px solid var(--bg);background:var(--bg3);position:relative;">
-          ${innerContent}
-          ${!innerContent&&group.avatar?'':(!innerContent?`<div style="width:100%;height:100%;background:var(--bg3);display:flex;align-items:center;justify-content:center;">${avatarFallbackSVG(42)}</div>`:'') }
-        </div>
-      </div>
-      <span style="font-size:10px;font-weight:700;color:var(--text2);max-width:66px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;text-align:center;">${escHtml(isOwn?'Meu Status':group.display_name)}</span>`;
-    wrap.querySelector('div').onmousedown=()=>{wrap.querySelector('div').style.transform='scale(.93)';};
-    wrap.querySelector('div').onmouseup=()=>{wrap.querySelector('div').style.transform='';};
-    wrap.querySelector('div').onclick=()=>viewUserStories(d,d.indexOf(group));
-    list.appendChild(wrap);
-  });
+  window._statusGroups=await r.json();
 }
 function viewUserStories(groups,groupIdx){
   activeStories=groups;storyGroupIndex=groupIdx;storyIndex=0;
@@ -1969,9 +2213,16 @@ async function viewGroupInfo(){
       <div style="width:42px;height:42px;border-radius:50%;overflow:hidden;background:linear-gradient(135deg,#2a2a2a,#1a1a1a);flex-shrink:0;position:relative;">${makeAvatarHTML(m.avatar||'',42)}</div>
       <div style="flex:1;">
         <p style="font-weight:700;font-size:15px;">${escHtml(m.display_name||m.username)}</p>
-        <p style="font-size:11px;color:${m.role==='admin'?'var(--red)':'var(--text3)'};">${m.role==='admin'?'Admin':'Membro'}</p>
+        <p style="font-size:11px;color:${m.role==='admin'?'var(--red)':'var(--text3)'};">${m.role==='admin'?'👑 Admin':'Membro'}</p>
       </div>
-      ${isGroupAdmin&&m.username!==me?`<button onclick="removeMember('${m.username}')" style="background:rgba(229,57,53,.1);color:var(--red);border:none;font-size:11px;font-weight:800;padding:5px 10px;border-radius:8px;cursor:pointer;">Remover</button>`:''}
+      ${isGroupAdmin&&m.username!==me?`
+        <div style="display:flex;flex-direction:column;gap:5px;">
+          ${m.role==='admin'
+            ?`<button onclick="setMemberRole('${m.username}','member')" style="background:rgba(255,255,255,.06);color:var(--text3);border:1px solid var(--border);font-size:10px;font-weight:800;padding:5px 10px;border-radius:8px;cursor:pointer;white-space:nowrap;">▼ Rebaixar</button>`
+            :`<button onclick="setMemberRole('${m.username}','admin')" style="background:rgba(52,199,89,.12);color:#34c759;border:1px solid rgba(52,199,89,.25);font-size:10px;font-weight:800;padding:5px 10px;border-radius:8px;cursor:pointer;white-space:nowrap;">▲ Promover</button>`
+          }
+          <button onclick="removeMember('${m.username}')" style="background:rgba(229,57,53,.1);color:var(--red);border:none;font-size:10px;font-weight:800;padding:5px 10px;border-radius:8px;cursor:pointer;">Remover</button>
+        </div>`:''}
     </div>`).join('');
   const settingsBtn=document.getElementById('group-settings-btn');
   const addMemberBtn=document.getElementById('add-member-btn-wrap-btn');
@@ -2025,6 +2276,22 @@ async function removeMember(username){
   const r=await fetch(`/groups/${currentGroupId}/members/remove`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({username,removed_by:me})}).catch(()=>null);
   if(r&&r.ok){showToast(`${username} removido`,'success');viewGroupInfo();}
   else showToast('Erro','error');
+}
+async function setMemberRole(username,role){
+  const label=role==='admin'?'promover a admin':'rebaixar a membro';
+  if(!confirm(`${label.charAt(0).toUpperCase()+label.slice(1)} @${username}?`))return;
+  const r=await fetch(`/groups/${currentGroupId}/members/role`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({username,role,updated_by:me})}).catch(()=>null);
+  if(r&&r.ok){
+    showToast(role==='admin'?`👑 ${username} é agora admin!`:`${username} rebaixado a membro`,'success');
+    await refreshGroupData();
+    viewGroupInfo();
+  }else{
+    // Fallback: server might not have this endpoint, update locally
+    if(currentGroupData?.members){
+      const m=currentGroupData.members.find(x=>x.username===username);
+      if(m){m.role=role;showToast(role==='admin'?`👑 ${username} promovido!`:`${username} rebaixado`,'success');viewGroupInfo();}
+    }else showToast('Erro ao atualizar papel','error');
+  }
 }
 async function leaveGroup(){
   if(!confirm('Sair do grupo?'))return;
