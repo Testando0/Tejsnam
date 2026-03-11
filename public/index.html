@@ -79,6 +79,111 @@ input,textarea{-webkit-user-select:text!important;user-select:text!important;}
 .hidden{display:none!important;}
 /* Avatar fallback */
 img[src=""]{display:none;}
+
+/* ===== STORY PREVIEW THUMBNAILS in list ===== */
+.story-thumb-wrap{position:relative;flex-shrink:0;cursor:pointer;}
+.story-thumb-inner{width:62px;height:62px;border-radius:50%;overflow:hidden;position:relative;}
+.story-thumb-preview{width:100%;height:100%;object-fit:cover;border-radius:50%;}
+.story-thumb-text-preview{width:100%;height:100%;display:flex;align-items:center;justify-content:center;font-size:10px;font-weight:900;color:#fff;text-align:center;padding:4px;word-break:break-word;line-height:1.2;}
+
+/* Default avatar (WhatsApp-style silhouette) */
+.avatar-fallback{width:100%;height:100%;border-radius:50%;background:linear-gradient(135deg,#2a2a2a,#1a1a1a);display:flex;align-items:center;justify-content:center;flex-shrink:0;}
+.avatar-fallback svg{opacity:.45;}
+.avatar-wrap{position:relative;border-radius:50%;overflow:hidden;background:linear-gradient(135deg,#2a2a2a,#1a1a1a);}
+
+/* ===== STORY REPLY BUBBLE (custom) ===== */
+@keyframes slideUp{from{opacity:0;transform:translateY(30px) scale(.95)}to{opacity:1;transform:none}}
+@keyframes slideDown{from{opacity:1;transform:none}to{opacity:0;transform:translateY(30px) scale(.95)}}
+@keyframes heartBeat{0%{transform:scale(1)}15%{transform:scale(1.4)}30%{transform:scale(1)}45%{transform:scale(1.2)}60%{transform:scale(1)}}
+@keyframes fadeInScale{from{opacity:0;transform:scale(.7)}to{opacity:1;transform:scale(1)}}
+@keyframes shimmer{0%{background-position:-200% 0}100%{background-position:200% 0}}
+@keyframes ripple{0%{transform:scale(0);opacity:.4}100%{transform:scale(4);opacity:0}}
+@keyframes storyEnter{from{opacity:0;transform:scale(1.04)}to{opacity:1;transform:scale(1)}}
+
+.story-reply-sheet{
+  position:absolute;bottom:0;left:0;right:0;
+  background:rgba(10,10,10,.92);
+  backdrop-filter:blur(28px);-webkit-backdrop-filter:blur(28px);
+  border-top:1px solid rgba(255,255,255,.08);
+  border-radius:24px 24px 0 0;
+  padding:16px 16px calc(env(safe-area-inset-bottom,0px) + 16px);
+  z-index:3025;
+  animation:slideUp .32s cubic-bezier(.22,1,.36,1) both;
+  box-shadow:0 -20px 60px rgba(0,0,0,.5);
+}
+.story-reply-sheet.closing{animation:slideDown .22s ease both;}
+.story-reply-hint{
+  display:flex;align-items:center;gap:10px;
+  padding:10px 14px;margin-bottom:12px;
+  background:rgba(255,255,255,.06);
+  border-radius:14px;border-left:3px solid var(--red);
+}
+.story-reply-preview-thumb{
+  width:36px;height:36px;border-radius:8px;object-fit:cover;flex-shrink:0;
+}
+.story-reply-preview-text-thumb{
+  width:36px;height:36px;border-radius:8px;display:flex;align-items:center;justify-content:center;
+  font-size:8px;font-weight:900;color:#fff;text-align:center;padding:3px;flex-shrink:0;
+}
+.story-reply-input-row{display:flex;align-items:center;gap:10px;}
+.story-reply-input{
+  flex:1;background:rgba(255,255,255,.08);
+  border:1.5px solid rgba(255,255,255,.12);
+  border-radius:24px;padding:12px 18px;
+  color:#fff;font-size:15.5px;outline:none;
+  -webkit-user-select:text;user-select:text;
+  transition:border-color .2s,background .2s;
+  font-family:inherit;
+}
+.story-reply-input:focus{border-color:var(--red);background:rgba(255,255,255,.11);}
+.story-reply-input::placeholder{color:rgba(255,255,255,.35);}
+.story-reply-send-btn{
+  width:46px;height:46px;border-radius:50%;
+  background:linear-gradient(135deg,var(--red),#b71c1c);
+  border:none;color:#fff;display:flex;align-items:center;justify-content:center;
+  cursor:pointer;transition:transform .15s,opacity .15s;
+  flex-shrink:0;box-shadow:0 4px 16px rgba(229,57,53,.4);
+}
+.story-reply-send-btn:active{transform:scale(.9);}
+.story-reply-emoji-row{display:flex;gap:6px;margin-bottom:12px;overflow-x:auto;scrollbar-width:none;padding:2px 0;}
+.story-reply-emoji{
+  font-size:22px;cursor:pointer;padding:6px 8px;border-radius:12px;
+  background:rgba(255,255,255,.06);transition:transform .15s,background .15s;
+  flex-shrink:0;line-height:1;
+}
+.story-reply-emoji:active{transform:scale(1.3);background:rgba(255,255,255,.12);}
+
+/* Story viewer enter animation */
+.story-content-anim{animation:storyEnter .25s ease both;}
+
+/* Like button animation */
+.like-animate{animation:heartBeat .6s ease both;}
+
+/* Story viewers modal - viewer row with liked indicator */
+.sv-row{display:flex;align-items:center;gap:12px;padding:12px 4px;border-bottom:1px solid rgba(255,255,255,.06);position:relative;animation:fi .2s ease both;}
+.sv-liked-heart{color:#ff4d4d;font-size:18px;margin-left:auto;animation:fadeInScale .3s ease both;}
+.sv-replied-badge{
+  background:rgba(229,57,53,.15);border:1px solid rgba(229,57,53,.25);
+  color:var(--red);font-size:9px;font-weight:800;letter-spacing:.5px;
+  padding:2px 7px;border-radius:6px;text-transform:uppercase;
+}
+.sv-reply-text{
+  color:rgba(255,255,255,.5);font-size:11px;font-style:italic;
+  white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:120px;
+}
+
+/* Story progress glow */
+.story-bar-fill{height:100%;background:linear-gradient(90deg,rgba(255,255,255,.7),#fff);width:0%;border-radius:2px;box-shadow:0 0 6px rgba(255,255,255,.4);}
+
+/* Ripple on story like */
+.like-ripple{
+  position:absolute;inset:0;border-radius:50%;
+  background:radial-gradient(circle,rgba(255,77,77,.35) 0%,transparent 70%);
+  animation:ripple .5s ease both;pointer-events:none;
+}
+
+/* Avatar in story ring with fallback */
+.story-ring-avatar{position:relative;width:58px;height:58px;border-radius:50%;overflow:hidden;border:2.5px solid var(--bg);}
 </style>
 </head>
 <body>
@@ -166,9 +271,10 @@ img[src=""]{display:none;}
         <svg style="width:28px;height:28px;" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="2.5"><path d="M15 19l-7-7 7-7"/></svg>
       </button>
       <div style="flex:1;display:flex;align-items:center;gap:10px;cursor:pointer;overflow:hidden;" onclick="isGroupChat?viewGroupInfo():viewProfile()">
-        <div style="position:relative;flex-shrink:0;">
-          <img id="chat_avatar" style="width:42px;height:42px;border-radius:50%;object-fit:cover;border:2px solid var(--border);background:var(--bg3);" src="" onerror="this.style.opacity='.3'">
-          <div id="chat_online_dot" class="online-dot hidden" style="position:absolute;bottom:0;right:0;"></div>
+        <div style="position:relative;flex-shrink:0;width:42px;height:42px;border-radius:50%;overflow:hidden;background:linear-gradient(135deg,#2a2a2a,#1a1a1a);">
+          <img id="chat_avatar" style="width:42px;height:42px;border-radius:50%;object-fit:cover;border:2px solid var(--border);background:transparent;display:block;" src="" onerror="this.style.display='none';this.nextElementSibling.style.display='flex'">
+          <div id="chat_avatar_fallback" class="av-fb" style="width:42px;height:42px;border-radius:50%;background:linear-gradient(135deg,#2a2a2a,#1a1a1a);display:flex;align-items:center;justify-content:center;position:absolute;inset:0;"></div>
+          <div id="chat_online_dot" class="online-dot hidden" style="position:absolute;bottom:0;right:0;z-index:3;"></div>
         </div>
         <div style="overflow:hidden;">
           <h3 id="chat_name" style="font-weight:800;font-size:16px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;"></h3>
@@ -276,18 +382,40 @@ img[src=""]{display:none;}
     <div id="story-text-container" class="hidden" style="position:absolute;inset:0;display:flex;align-items:center;justify-content:center;padding:40px;text-align:center;font-size:28px;font-weight:800;color:#fff;word-break:break-word;"></div>
     <div id="story-caption-display" class="hidden" style="position:absolute;bottom:100px;left:0;right:0;text-align:center;color:#fff;font-size:15px;padding:0 24px;text-shadow:0 1px 6px rgba(0,0,0,.8);font-weight:500;"></div>
   </div>
-  <div style="position:absolute;bottom:0;left:0;right:0;padding:16px 20px calc(env(safe-area-inset-bottom,0px) + 16px);z-index:3020;">
-    <div id="story-footer-actions" style="display:flex;gap:16px;justify-content:center;margin-bottom:12px;">
-      <button onclick="event.stopPropagation();likeStory()" style="background:rgba(255,255,255,.12);backdrop-filter:blur(16px);border:none;color:#fff;padding:14px;border-radius:50%;cursor:pointer;">
-        <svg id="like-icon-svg" style="width:24px;height:24px;" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="2"><path d="M4.318 6.318a4.5 4.5 0 000 6.364L12 20.364l7.682-7.682a4.5 4.5 0 00-6.364-6.364L12 7.636l-1.318-1.318a4.5 4.5 0 00-6.364 0z"/></svg>
-      </button>
-      <button onclick="event.stopPropagation();replyToStory()" style="background:rgba(255,255,255,.12);backdrop-filter:blur(16px);border:none;color:#fff;padding:14px;border-radius:50%;cursor:pointer;">
-        <svg style="width:24px;height:24px;" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="2"><path d="M3 10h10a8 8 0 018 8v2M3 10l6 6m-6-6l6-6"/></svg>
-      </button>
-    </div>
-    <div id="story-viewers-btn" class="hidden" style="text-align:center;cursor:pointer;" onclick="event.stopPropagation();showStoryViewers()">
+  <div style="position:absolute;bottom:0;left:0;right:0;z-index:3020;">
+    <div id="story-viewers-btn" class="hidden" style="text-align:center;cursor:pointer;padding:8px 0 4px;" onclick="event.stopPropagation();showStoryViewers()">
       <svg style="width:20px;height:20px;color:rgba(255,255,255,.6);display:inline;" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="2"><path d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"/><path d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z"/></svg>
       <span id="story-viewers-count" style="color:rgba(255,255,255,.8);font-size:12px;font-weight:700;margin-left:6px;vertical-align:middle;"></span>
+    </div>
+    <!-- Like floating button (only visible, not action buttons row anymore) -->
+    <div id="story-footer-actions" style="display:flex;gap:16px;justify-content:flex-end;padding:8px 20px 10px;">
+      <button id="like-btn" onclick="event.stopPropagation();likeStory()" style="background:rgba(255,255,255,.12);backdrop-filter:blur(16px);border:none;color:#fff;padding:14px;border-radius:50%;cursor:pointer;position:relative;overflow:visible;">
+        <svg id="like-icon-svg" style="width:24px;height:24px;" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="2"><path d="M4.318 6.318a4.5 4.5 0 000 6.364L12 20.364l7.682-7.682a4.5 4.5 0 00-6.364-6.364L12 7.636l-1.318-1.318a4.5 4.5 0 00-6.364 0z"/></svg>
+      </button>
+    </div>
+    <!-- Custom reply sheet -->
+    <div id="story-reply-sheet" class="story-reply-sheet" onclick="event.stopPropagation()">
+      <div class="story-reply-hint">
+        <div id="story-reply-hint-content" style="display:flex;align-items:center;gap:10px;flex:1;overflow:hidden;"></div>
+      </div>
+      <div class="story-reply-emoji-row">
+        <div class="story-reply-emoji" onclick="event.stopPropagation();sendStoryReplyEmoji('❤️')">❤️</div>
+        <div class="story-reply-emoji" onclick="event.stopPropagation();sendStoryReplyEmoji('😂')">😂</div>
+        <div class="story-reply-emoji" onclick="event.stopPropagation();sendStoryReplyEmoji('😮')">😮</div>
+        <div class="story-reply-emoji" onclick="event.stopPropagation();sendStoryReplyEmoji('😢')">😢</div>
+        <div class="story-reply-emoji" onclick="event.stopPropagation();sendStoryReplyEmoji('🔥')">🔥</div>
+        <div class="story-reply-emoji" onclick="event.stopPropagation();sendStoryReplyEmoji('👏')">👏</div>
+        <div class="story-reply-emoji" onclick="event.stopPropagation();sendStoryReplyEmoji('🙌')">🙌</div>
+      </div>
+      <div class="story-reply-input-row">
+        <input id="story-reply-text" class="story-reply-input" placeholder="Responder ao status..." 
+          onfocus="clearTimeout(storyTimer)" 
+          onblur="startStoryProgress(5000)"
+          onkeydown="if(event.key==='Enter'){event.preventDefault();sendStoryReply();}">
+        <button class="story-reply-send-btn" onclick="event.stopPropagation();sendStoryReply()">
+          <svg style="width:20px;height:20px;" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="2.5"><path d="M22 2L11 13M22 2l-7 20-4-9-9-4 20-7z"/></svg>
+        </button>
+      </div>
     </div>
   </div>
 </div>
@@ -302,10 +430,11 @@ img[src=""]{display:none;}
       <div style="width:60px;"></div>
     </div>
     <div style="display:flex;flex-direction:column;align-items:center;padding:32px 24px 24px;">
-      <div style="position:relative;width:130px;height:130px;margin-bottom:20px;">
-        <img id="prof_avatar" style="width:130px;height:130px;border-radius:50%;object-fit:cover;border:3px solid var(--border);background:var(--bg3);" src="">
-        <div id="prof_online_indicator" class="hidden" style="position:absolute;bottom:6px;right:6px;width:22px;height:22px;background:var(--online);border-radius:50%;border:3px solid var(--bg);"></div>
-      </div>
+        <div style="position:relative;width:130px;height:130px;border-radius:50%;overflow:hidden;background:linear-gradient(135deg,#2a2a2a,#1a1a1a);">
+          <img id="prof_avatar" style="width:130px;height:130px;border-radius:50%;object-fit:cover;display:block;" src="" onerror="this.style.display='none';this.nextElementSibling.style.display='flex'">
+          <div id="prof_avatar_fallback" class="av-fb" style="width:130px;height:130px;border-radius:50%;background:linear-gradient(135deg,#2a2a2a,#1a1a1a);display:flex;align-items:center;justify-content:center;position:absolute;inset:0;"></div>
+          <div id="prof_online_indicator" class="hidden" style="position:absolute;bottom:6px;right:6px;width:22px;height:22px;background:var(--online);border-radius:50%;border:3px solid var(--bg);"></div>
+        </div>
       <h2 id="prof_dn" style="font-size:26px;font-weight:900;margin-bottom:4px;"></h2>
       <p id="prof_un" style="color:var(--red);font-weight:700;font-size:16px;margin-bottom:24px;"></p>
       <div style="width:100%;background:var(--bg2);border-radius:16px;border:1px solid var(--border);padding:16px 20px;">
@@ -780,10 +909,11 @@ function chatRow(c){
   const time=c.last_msg_time?formatDate(c.last_msg_time):'';
   const lastMsg=escHtml(c.last_msg_preview||'');
   const pin=c.is_pinned?'<svg style="width:13px;height:13px;color:var(--text3);" fill="currentColor" viewBox="0 0 24 24"><path d="M16 12V4h1V2H7v2h1v8l-2 2v2h5.2v6h1.6v-6H18v-2l-2-2z"/></svg>':'';
-  const onlineDot=isG?'':`<div id="dot-${id}" style="position:absolute;bottom:1px;right:1px;width:12px;height:12px;background:var(--online);border-radius:50%;border:2px solid var(--bg);display:${c.is_online?'block':'none'};"></div>`;
-  return `<div id="row-${id}" onclick="${isG?`openGroupChat('${id}')`:`openChat('${c.contact}')`}" style="display:flex;align-items:center;gap:14px;padding:12px 16px;border-bottom:1px solid var(--border);cursor:pointer;transition:background .15s;position:relative;">
-    <div style="position:relative;flex-shrink:0;">
-      <img src="${escHtml(avatar)}" style="width:54px;height:54px;border-radius:50%;object-fit:cover;background:var(--bg3);" onerror="this.style.opacity='.3'">
+  const onlineDot=isG?'':`<div id="dot-${id}" style="position:absolute;bottom:1px;right:1px;width:12px;height:12px;background:var(--online);border-radius:50%;border:2px solid var(--bg);display:${c.is_online?'block':'none'};z-index:2;"></div>`;
+  const avHTML=makeAvatarHTML(avatar,54,'border:none;');
+  return `<div id="row-${id}" onclick="${isG?`openGroupChat('${id}')`:`openChat('${c.contact}')`}" style="display:flex;align-items:center;gap:14px;padding:12px 16px;border-bottom:1px solid var(--border);cursor:pointer;transition:background .15s;position:relative;" onmousedown="chatRowPressStart(event,${JSON.stringify(JSON.stringify(c)).slice(1,-1).replace(/"/g,'&quot;')})" onmouseup="chatRowPressEnd()" ontouchstart="chatRowPressStart(event,${JSON.stringify(JSON.stringify(c)).slice(1,-1).replace(/"/g,'&quot;')})" ontouchend="chatRowPressEnd()">
+    <div style="position:relative;flex-shrink:0;width:54px;height:54px;border-radius:50%;overflow:hidden;background:linear-gradient(135deg,#2a2a2a,#1a1a1a);">
+      ${avHTML}
       ${onlineDot}
     </div>
     <div style="flex:1;overflow:hidden;">
@@ -817,6 +947,15 @@ function showChatContextMenu(e,c){
 }
 
 // ====== OPEN CHAT ======
+function setChatAvatar(src){
+  const img=document.getElementById('chat_avatar');
+  const fb=document.getElementById('chat_avatar_fallback');
+  if(!img)return;
+  if(!src){img.style.display='none';if(fb){fb.style.display='flex';fb.innerHTML=avatarFallbackSVG(42);}return;}
+  img.onload=()=>{img.style.display='block';if(fb)fb.style.display='none';};
+  img.onerror=()=>{img.style.display='none';if(fb){fb.style.display='flex';fb.innerHTML=avatarFallbackSVG(42);}};
+  img.src=src;
+}
 async function openChat(contact){
   activeChat=contact;isGroupChat=false;activeChatType='dm';currentGroupId=null;
   document.getElementById('chat_name').textContent=contact;
@@ -839,7 +978,7 @@ async function openChat(contact){
   if(userR){
     document.getElementById('chat_name').textContent=userR.display_name||contact;
     const av=userR.avatar||'';
-    document.getElementById('chat_avatar').src=av;
+    setChatAvatar(av);
     // FIX: server stores is_online not online
     updateChatStatus(userR.is_online||false, userR.last_seen);
   }
@@ -866,7 +1005,7 @@ async function openGroupChat(groupId){
     isGroupAdmin=member?.role==='admin'||gData.created_by===me;
     document.getElementById('chat_name').textContent=gData.name||groupId;
     const av=gData.avatar||'';
-    document.getElementById('chat_avatar').src=av;
+    setChatAvatar(av);
     document.getElementById('chat_online_dot').classList.add('hidden');
     document.getElementById('chat_status').textContent=`${gData.members?.length||0} membros`;
     document.getElementById('chat_status').style.color='var(--text3)';
@@ -1448,7 +1587,10 @@ async function upload(type,event){
 }
 function viewProfile(){
   fetch(`/user/${encodeURIComponent(activeChat)}`).then(r=>r.json()).then(u=>{
-    document.getElementById('prof_avatar').src=u.avatar||'';
+    const profImg=document.getElementById('prof_avatar');
+    const profFb=document.getElementById('prof_avatar_fallback');
+    if(u.avatar){profImg.style.display='block';if(profFb)profFb.style.display='none';profImg.onload=()=>{profImg.style.display='block';if(profFb)profFb.style.display='none';};profImg.onerror=()=>{profImg.style.display='none';if(profFb){profFb.style.display='flex';profFb.innerHTML=avatarFallbackSVG(130);}};profImg.src=u.avatar;}
+    else{profImg.style.display='none';if(profFb){profFb.style.display='flex';profFb.innerHTML=avatarFallbackSVG(130);}}
     document.getElementById('prof_dn').textContent=u.display_name||u.username;
     document.getElementById('prof_un').textContent='@'+u.username;
     document.getElementById('prof_bio').textContent=u.bio||'Sem bio';
@@ -1468,6 +1610,27 @@ function logout(){
   document.getElementById('u_auth').value='';document.getElementById('p_auth').value='';
 }
 
+// ====== AVATAR FALLBACK HELPER ======
+function avatarFallbackSVG(size=42){
+  return `<svg width="${size}" height="${size}" viewBox="0 0 ${size} ${size}" fill="none" xmlns="http://www.w3.org/2000/svg">
+    <rect width="${size}" height="${size}" rx="${size/2}" fill="#2a2a2a"/>
+    <ellipse cx="${size/2}" cy="${size*0.38}" rx="${size*0.22}" ry="${size*0.22}" fill="#666"/>
+    <ellipse cx="${size/2}" cy="${size*0.78}" rx="${size*0.32}" ry="${size*0.22}" fill="#555"/>
+  </svg>`;
+}
+function setAvatarSrc(imgEl, src, size=42){
+  if(!imgEl)return;
+  if(!src){imgEl.style.display='none';const fb=imgEl.parentElement?.querySelector('.av-fb');if(fb)fb.style.display='flex';return;}
+  imgEl.onload=()=>{imgEl.style.display='';const fb=imgEl.parentElement?.querySelector('.av-fb');if(fb)fb.style.display='none';};
+  imgEl.onerror=()=>{imgEl.style.display='none';const fb=imgEl.parentElement?.querySelector('.av-fb');if(fb)fb.style.display='flex';};
+  imgEl.src=src;
+}
+function makeAvatarHTML(src, size=42, extraStyle=''){
+  const s=`width:${size}px;height:${size}px;border-radius:50%;object-fit:cover;display:block;${extraStyle}`;
+  const fbS=`width:${size}px;height:${size}px;border-radius:50%;background:linear-gradient(135deg,#2a2a2a,#1a1a1a);display:${src?'none':'flex'};align-items:center;justify-content:center;flex-shrink:0;`;
+  return `<img src="${escHtml(src||'')}" style="${s}" onerror="this.style.display='none';this.nextElementSibling.style.display='flex'"><div class="av-fb" style="${fbS}">${avatarFallbackSVG(size)}</div>`;
+}
+
 // ====== STORIES ======
 async function loadStories(){
   const r=await fetch(`/stories?viewer=${me}`).catch(()=>null);
@@ -1477,11 +1640,39 @@ async function loadStories(){
   list.innerHTML='';
   d.forEach(group=>{
     const seen=group.stories.every(s=>(s.viewers||[]).includes(me));
+    const lastStory=group.stories[group.stories.length-1];
     const wrap=document.createElement('div');
-    wrap.style.cssText='display:flex;flex-direction:column;align-items:center;gap:6px;flex-shrink:0;cursor:pointer;';
-    const av=group.avatar||'';
-    wrap.innerHTML=`<div class="story-ring${seen?' seen':''}"><img src="${escHtml(av)}" onerror="this.style.opacity='.3'"></div><span style="font-size:10px;font-weight:700;color:var(--text2);max-width:62px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${escHtml(group.display_name)}</span>`;
-    wrap.onclick=()=>viewUserStories(d,d.indexOf(group));
+    wrap.className='story-thumb-wrap';
+    wrap.style.cssText='display:flex;flex-direction:column;align-items:center;gap:6px;';
+    // Build ring gradient
+    const ringStyle=seen
+      ?'background:var(--bg4);'
+      :'background:conic-gradient(#e53935,#ff5252,#e53935);';
+    // Build inner preview
+    let innerContent='';
+    if(lastStory&&lastStory.type==='image'&&lastStory.content){
+      innerContent=`<img src="${escHtml(lastStory.content)}" style="width:100%;height:100%;object-fit:cover;border-radius:50%;" onerror="this.style.display='none'">`;
+    }else if(lastStory&&lastStory.type==='text'){
+      const bg=lastStory.bg_color||'#e53935';
+      const txt=(lastStory.content||'').substring(0,20);
+      innerContent=`<div style="width:100%;height:100%;border-radius:50%;background:${escHtml(bg)};display:flex;align-items:center;justify-content:center;padding:6px;"><span style="font-size:9px;font-weight:900;color:#fff;text-align:center;line-height:1.1;overflow:hidden;word-break:break-word;">${escHtml(txt)}</span></div>`;
+    }else{
+      // Fallback to avatar
+      if(group.avatar){innerContent=`<img src="${escHtml(group.avatar)}" style="width:100%;height:100%;object-fit:cover;border-radius:50%;" onerror="this.style.display='none'">`;}
+    }
+    // Check if current user's own stories
+    const isOwn=group.username===me;
+    wrap.innerHTML=`
+      <div style="width:66px;height:66px;border-radius:50%;padding:2.5px;${ringStyle}flex-shrink:0;cursor:pointer;transition:transform .2s;">
+        <div style="width:100%;height:100%;border-radius:50%;overflow:hidden;border:2.5px solid var(--bg);background:var(--bg3);position:relative;">
+          ${innerContent}
+          ${!innerContent&&group.avatar?'':(!innerContent?`<div style="width:100%;height:100%;background:var(--bg3);display:flex;align-items:center;justify-content:center;">${avatarFallbackSVG(42)}</div>`:'') }
+        </div>
+      </div>
+      <span style="font-size:10px;font-weight:700;color:var(--text2);max-width:66px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;text-align:center;">${escHtml(isOwn?'Meu Status':group.display_name)}</span>`;
+    wrap.querySelector('div').onmousedown=()=>{wrap.querySelector('div').style.transform='scale(.93)';};
+    wrap.querySelector('div').onmouseup=()=>{wrap.querySelector('div').style.transform='';};
+    wrap.querySelector('div').onclick=()=>viewUserStories(d,d.indexOf(group));
     list.appendChild(wrap);
   });
 }
@@ -1495,7 +1686,10 @@ function showCurrentStory(){
   const group=activeStories[storyGroupIndex];
   const story=group.stories[storyIndex];
   if(!story){closeStory();return;}
-  document.getElementById('story-viewer-avatar').src=group.avatar||'';
+  // Avatar fallback in viewer header
+  const avEl=document.getElementById('story-viewer-avatar');
+  if(group.avatar){avEl.src=group.avatar;avEl.style.display='';avEl.onerror=()=>{avEl.style.display='none';let fb=document.getElementById('sv-av-fb');if(!fb){fb=document.createElement('div');fb.id='sv-av-fb';fb.style.cssText='width:38px;height:38px;border-radius:50%;background:#333;display:flex;align-items:center;justify-content:center;flex-shrink:0;';fb.innerHTML=avatarFallbackSVG(38);avEl.parentElement.insertBefore(fb,avEl.nextSibling);}fb.style.display='flex';};}
+  else{avEl.style.display='none';let fb=document.getElementById('sv-av-fb');if(!fb){fb=document.createElement('div');fb.id='sv-av-fb';fb.style.cssText='width:38px;height:38px;border-radius:50%;background:#333;display:flex;align-items:center;justify-content:center;flex-shrink:0;';fb.innerHTML=avatarFallbackSVG(38);avEl.parentElement.insertBefore(fb,avEl.nextSibling);}fb.style.display='flex';}
   document.getElementById('story-viewer-name').textContent=group.display_name||group.username;
   document.getElementById('story-viewer-time').textContent=formatDate(story.time);
   const isOwn=group.username===me;
@@ -1503,28 +1697,45 @@ function showCurrentStory(){
   const viewersBtn=document.getElementById('story-viewers-btn');
   viewersBtn.classList.toggle('hidden',!isOwn);
   if(isOwn)document.getElementById('story-viewers-count').textContent=`${(story.viewers||[]).length} visualizações`;
+  // Hide reply input for own stories
+  const replySheet=document.getElementById('story-reply-sheet');
+  if(replySheet){if(isOwn){replySheet.style.display='none';}else{replySheet.style.display='';}}
   const liked=(story.likes||[]).includes(me);
   const likeIcon=document.getElementById('like-icon-svg');
   if(likeIcon){likeIcon.style.fill=liked?'#ff5252':'none';likeIcon.setAttribute('stroke',liked?'#ff5252':'currentColor');}
   // Progress bars
   const progressEl=document.getElementById('story-progress');
   const storyCount=group.stories.length;
-  progressEl.innerHTML=Array.from({length:storyCount},(_,i)=>`<div class="story-bar"><div class="story-bar-fill" id="bar-${i}" style="${i<storyIndex?'width:100%':''}"></div></div>`).join('');
-  // Show content
+  progressEl.innerHTML=Array.from({length:storyCount},(_,i)=>`<div class="story-bar"><div class="story-bar-fill" id="bar-${i}" style="${i<storyIndex?'width:100%':''};transition:none;"></div></div>`).join('');
+  // Show content with animation
   const img=document.getElementById('story-img');
   const vid=document.getElementById('story-vid');
   const txt=document.getElementById('story-text-container');
   const cap=document.getElementById('story-caption-display');
   img.classList.add('hidden');vid.pause();vid.classList.add('hidden');txt.classList.add('hidden');cap.classList.add('hidden');
-  if(story.type==='image'){img.src=story.content||'';img.classList.remove('hidden');}
-  else if(story.type==='video'){vid.src=story.content||'';vid.classList.remove('hidden');vid.play().catch(()=>{});}
-  else if(story.type==='text'){
+  if(story.type==='image'){
+    img.src=story.content||'';
+    img.classList.remove('hidden');
+    img.className=img.className.replace(' story-content-anim','');
+    void img.offsetWidth;
+    img.className+=' story-content-anim';
+  }else if(story.type==='video'){
+    vid.src=story.content||'';vid.classList.remove('hidden');vid.play().catch(()=>{});
+    vid.className=vid.className.replace(' story-content-anim','');
+    void vid.offsetWidth;
+    vid.className+=' story-content-anim';
+  }else if(story.type==='text'){
     txt.textContent=story.content;
     txt.style.background=story.bg_color||'var(--red)';
     txt.classList.remove('hidden');
+    txt.className=txt.className.replace(' story-content-anim','');
+    void txt.offsetWidth;
+    txt.className+=' story-content-anim';
   }
   if(story.caption){cap.textContent=story.caption;cap.classList.remove('hidden');}
   document.getElementById('story-viewer').style.background=story.type==='text'?(story.bg_color||'var(--red)'):'#000';
+  // Update reply sheet preview
+  updateStoryReplyPreview(story,group);
   viewStory(story.id);
   startStoryProgress(story.type==='video'?8000:5000);
 }
@@ -1567,7 +1778,18 @@ async function likeStory(){
     const d=await r.json();
     story.likes=d.likes||[];
     const icon=document.getElementById('like-icon-svg');
-    if(icon){icon.style.fill=d.liked?'#ff5252':'none';icon.setAttribute('stroke',d.liked?'#ff5252':'currentColor');}
+    const btn=document.getElementById('like-btn');
+    if(icon){
+      icon.style.fill=d.liked?'#ff5252':'none';
+      icon.setAttribute('stroke',d.liked?'#ff5252':'currentColor');
+    }
+    if(btn&&d.liked){
+      btn.classList.add('like-animate');
+      // Ripple effect
+      const rip=document.createElement('div');rip.className='like-ripple';btn.style.position='relative';btn.appendChild(rip);
+      setTimeout(()=>rip.remove(),500);
+      setTimeout(()=>btn.classList.remove('like-animate'),700);
+    }
     showToast(d.liked?'❤️ Curtido!':'Descurtido','info');
   }
 }
@@ -1580,15 +1802,54 @@ async function deleteMyStory(){
   if(r&&r.ok){showToast('Status apagado','success');closeStory();}
   else showToast('Erro ao apagar','error');
 }
+function updateStoryReplyPreview(story,group){
+  const sheet=document.getElementById('story-reply-sheet');
+  if(!sheet)return;
+  const isOwn=group.username===me;
+  if(isOwn){sheet.style.display='none';return;}
+  sheet.style.display='';
+  const hint=document.getElementById('story-reply-hint-content');
+  if(!hint)return;
+  if(story.type==='image'&&story.content){
+    hint.innerHTML=`<img src="${escHtml(story.content)}" class="story-reply-preview-thumb"><div style="overflow:hidden;"><p style="font-size:11px;font-weight:700;color:var(--red);margin-bottom:2px;">${escHtml(group.display_name||group.username)}</p><p style="font-size:12px;color:rgba(255,255,255,.55);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">📷 Foto</p></div>`;
+  }else if(story.type==='video'){
+    hint.innerHTML=`<div class="story-reply-preview-text-thumb" style="background:#222;">🎥</div><div style="overflow:hidden;"><p style="font-size:11px;font-weight:700;color:var(--red);margin-bottom:2px;">${escHtml(group.display_name||group.username)}</p><p style="font-size:12px;color:rgba(255,255,255,.55);">🎬 Vídeo</p></div>`;
+  }else{
+    const bg=story.bg_color||'#e53935';
+    const txt=(story.content||'').substring(0,30);
+    hint.innerHTML=`<div class="story-reply-preview-text-thumb" style="background:${escHtml(bg)};"><span style="font-size:7px;font-weight:900;color:#fff;word-break:break-word;">${escHtml(txt)}</span></div><div style="overflow:hidden;"><p style="font-size:11px;font-weight:700;color:var(--red);margin-bottom:2px;">${escHtml(group.display_name||group.username)}</p><p style="font-size:12px;color:rgba(255,255,255,.55);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">✏️ Texto</p></div>`;
+  }
+}
 async function replyToStory(){
+  // Handled via the inline reply sheet - focus input
+  const input=document.getElementById('story-reply-text');
+  if(input){
+    // Pause story timer while typing
+    clearTimeout(storyTimer);
+    input.focus();
+  }
+}
+async function sendStoryReply(){
   const group=activeStories[storyGroupIndex];
   const story=group?.stories[storyIndex];
   if(!story)return;
-  const msg=prompt('Responder ao status:');
-  if(!msg||!msg.trim())return;
-  const r=await fetch(`/stories/${story.id}/reply`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({username:me,message:msg.trim()})}).catch(()=>null);
-  if(r&&r.ok)showToast('Resposta enviada!','success');
-  else showToast('Erro','error');
+  const input=document.getElementById('story-reply-text');
+  const msg=(input?.value||'').trim();
+  if(!msg)return;
+  const r=await fetch(`/stories/${story.id}/reply`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({username:me,message:msg})}).catch(()=>null);
+  if(r&&r.ok){
+    showToast('✉️ Resposta enviada!','success');
+    input.value='';
+    // Resume progress
+    input.blur();
+    startStoryProgress(story.type==='video'?8000:5000);
+  }else showToast('Erro','error');
+}
+function sendStoryReplyEmoji(emoji){
+  const group=activeStories[storyGroupIndex];
+  const story=group?.stories[storyIndex];
+  if(!story)return;
+  fetch(`/stories/${story.id}/reply`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({username:me,message:emoji})}).then(()=>showToast(`${emoji} Enviado!`,'info')).catch(()=>{});
 }
 async function showStoryViewers(){
   const group=activeStories[storyGroupIndex];
@@ -1597,10 +1858,26 @@ async function showStoryViewers(){
   const r=await fetch(`/stories/${story.id}/viewers`).catch(()=>null);
   let viewers=[];
   if(r&&r.ok)viewers=await r.json();
-  document.getElementById('sv-list').innerHTML=viewers.length?viewers.map(v=>`<div style="display:flex;align-items:center;gap:12px;padding:10px 0;border-bottom:1px solid var(--border);">
-    <img src="${escHtml(v.avatar||'')}" style="width:42px;height:42px;border-radius:50%;object-fit:cover;background:var(--bg3);" onerror="this.style.opacity='.3'">
-    <div><p style="font-weight:700;font-size:15px;">${escHtml(v.display_name||v.username)}</p><p style="color:var(--text3);font-size:12px;">@${escHtml(v.username)}</p></div>
-  </div>`).join(''):'<p style="color:var(--text3);text-align:center;padding:24px;">Nenhuma visualização</p>';
+  const liked=story.likes||[];
+  document.getElementById('sv-list').innerHTML=viewers.length?viewers.map((v,i)=>{
+    const didLike=liked.includes(v.username);
+    const reply=v.reply||'';
+    const av=makeAvatarHTML(v.avatar||'',44,'border:2px solid var(--border);');
+    return `<div class="sv-row" style="animation-delay:${i*0.04}s">
+      <div style="position:relative;width:44px;height:44px;flex-shrink:0;">${av}</div>
+      <div style="flex:1;overflow:hidden;">
+        <div style="display:flex;align-items:center;gap:6px;">
+          <p style="font-weight:700;font-size:15px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${escHtml(v.display_name||v.username)}</p>
+          ${didLike?`<span style="font-size:15px;line-height:1;" title="Curtiu">❤️</span>`:''}
+        </div>
+        <div style="display:flex;align-items:center;gap:6px;margin-top:2px;">
+          <p style="color:var(--text3);font-size:12px;">@${escHtml(v.username)}</p>
+          ${reply?`<span class="sv-replied-badge">Respondeu</span>`:''}
+        </div>
+        ${reply?`<p class="sv-reply-text" title="${escHtml(reply)}">"${escHtml(reply)}"</p>`:''}
+      </div>
+    </div>`;
+  }).join(''):'<p style="color:var(--text3);text-align:center;padding:48px 16px;font-size:15px;">Nenhuma visualização ainda</p>';
   document.getElementById('story-viewers-modal').style.display='flex';
 }
 function handleStoryFile(e){
@@ -1689,7 +1966,7 @@ async function viewGroupInfo(){
   const membersList=document.getElementById('group-members-list');
   membersList.innerHTML=(g.members||[]).map(m=>`
     <div style="display:flex;align-items:center;gap:12px;">
-      <img src="${escHtml(m.avatar||'')}" style="width:42px;height:42px;border-radius:50%;object-fit:cover;background:var(--bg3);" onerror="this.style.opacity='.3'">
+      <div style="width:42px;height:42px;border-radius:50%;overflow:hidden;background:linear-gradient(135deg,#2a2a2a,#1a1a1a);flex-shrink:0;position:relative;">${makeAvatarHTML(m.avatar||'',42)}</div>
       <div style="flex:1;">
         <p style="font-weight:700;font-size:15px;">${escHtml(m.display_name||m.username)}</p>
         <p style="font-size:11px;color:${m.role==='admin'?'var(--red)':'var(--text3)'};">${m.role==='admin'?'Admin':'Membro'}</p>
@@ -1731,7 +2008,7 @@ async function uploadGroupAvatar(e){
   const reader=new FileReader();
   reader.onload=async ev=>{
     const r=await fetch(`/groups/${currentGroupId}/update`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({avatar:ev.target.result,updated_by:me})}).catch(()=>null);
-    if(r&&r.ok){const d=await r.json();document.getElementById('group-info-avatar').src=d.group?.avatar||'';document.getElementById('chat_avatar').src=d.group?.avatar||'';showToast('Foto atualizada!','success');}
+    if(r&&r.ok){const d=await r.json();document.getElementById('group-info-avatar').src=d.group?.avatar||'';setChatAvatar(d.group?.avatar||'');showToast('Foto atualizada!','success');}
   };
   reader.readAsDataURL(file);
 }
@@ -1780,8 +2057,8 @@ function showFriendRequests(){
   const d=window._pendingRequests||[];
   const list=document.getElementById('fr-list');
   list.innerHTML=d.map(req=>`
-    <div style="display:flex;align-items:center;gap:12px;background:var(--bg2);padding:14px;border-radius:18px;border:1px solid var(--border);">
-      <img src="${escHtml(req.avatar||'')}" style="width:48px;height:48px;border-radius:50%;object-fit:cover;background:var(--bg3);" onerror="this.style.opacity='.3'">
+    <div style="display:flex;align-items:center;gap:12px;background:var(--bg2);padding:14px;border-radius:18px;border:1px solid var(--border);animation:fi .2s ease both;">
+      <div style="width:48px;height:48px;border-radius:50%;overflow:hidden;background:linear-gradient(135deg,#2a2a2a,#1a1a1a);flex-shrink:0;position:relative;">${makeAvatarHTML(req.avatar||'',48)}</div>
       <div style="flex:1;"><p style="font-weight:800;font-size:15px;">${escHtml(req.display_name||req.username)}</p><p style="color:var(--text3);font-size:12px;">@${escHtml(req.username)}</p></div>
       <div style="display:flex;flex-direction:column;gap:7px;">
         <button onclick="acceptFriendRequest('${req.username}')" style="background:rgba(229,57,53,.15);color:var(--red);border:1px solid rgba(229,57,53,.3);padding:6px 14px;border-radius:10px;font-weight:800;font-size:13px;cursor:pointer;">Aceitar</button>
