@@ -779,8 +779,8 @@ async function openChat(contact){
   if(settings.wallpaper)document.getElementById('msg-container').style.backgroundImage=`url(${settings.wallpaper})`;
   else document.getElementById('msg-container').style.backgroundImage='';
   const [msgs,userR]=await Promise.all([
-    fetch(`/messages/${me}/${contact}`).then(r=>r.json()).catch(()=>[]),
-    fetch(`/user/${contact}`).then(r=>r.json()).catch(()=>null)
+    fetch(`/messages/${encodeURIComponent(me)}/${encodeURIComponent(contact)}`).then(r=>r.json()).catch(()=>[]),
+    fetch(`/user/${encodeURIComponent(contact)}`).then(r=>r.json()).catch(()=>null)
   ]);
   if(userR){
     document.getElementById('chat_name').textContent=userR.display_name||contact;
@@ -831,7 +831,7 @@ function updateChatStatus(online,lastSeen){
 }
 async function refreshActiveUserStatus(){
   if(!activeChat||isGroupChat)return;
-  const r=await fetch(`/user/${activeChat}`).catch(()=>null);
+  const r=await fetch(`/user/${encodeURIComponent(activeChat)}`).catch(()=>null);
   if(r&&r.ok){const d=await r.json();updateChatStatus(d.online,d.lastSeen);}
 }
 function updateGroupClosedUI(isClosed){
@@ -1272,7 +1272,7 @@ async function upload(type,event){
   reader.readAsDataURL(file);
 }
 function viewProfile(){
-  fetch(`/user/${activeChat}`).then(r=>r.json()).then(u=>{
+  fetch(`/user/${encodeURIComponent(activeChat)}`).then(r=>r.json()).then(u=>{
     document.getElementById('prof_avatar').src=u.avatar||'';
     document.getElementById('prof_dn').textContent=u.display_name||u.username;
     document.getElementById('prof_un').textContent='@'+u.username;
@@ -1635,8 +1635,8 @@ async function sendFriendRequest(to){
 async function startChat(){
   const contact=document.getElementById('new-chat-input').value.trim().toLowerCase();
   if(!contact||contact===me)return showToast('Usuário inválido','error');
-  const r=await fetch(`/user/${contact}`).catch(()=>null);
-  if(!r||!r.ok)return showToast('Usuário não encontrado','error');
+  const r=await fetch(`/user/${encodeURIComponent(contact)}`).catch(()=>null);
+  if(!r||!r.ok)return showToast('Usuário não encontrado. Verifique o username.','error');
   document.getElementById('new-chat-modal').style.display='none';
   document.getElementById('new-chat-input').value='';
   await openChat(contact);
