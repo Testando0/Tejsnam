@@ -283,6 +283,19 @@ io.on('connection', (socket) => {
         });
     });
 
+    socket.on('group_role_change', (data) => {
+        // Relay role change to all group members (when REST endpoint is unavailable)
+        const { group_id, username, role, by } = data;
+        if (!group_id || !username || !role) return;
+        db.all(`SELECT username FROM group_members WHERE group_id = ?`, [group_id], (err, members) => {
+            if (members) members.forEach(m => {
+                if (onlineUsers.has(m.username)) onlineUsers.get(m.username).forEach(sid =>
+                    io.to(sid).emit('group_role_change', { group_id, username, role, by })
+                );
+            });
+        });
+    });
+
     socket.on('friend_accepted', (data) => {
         const { by, request_id } = data;
         if (request_id) {
@@ -633,6 +646,27 @@ app.post('/groups/:group_id/promote', (req, res) => {
         db.run(`UPDATE group_members SET role = 'admin' WHERE group_id = ? AND username = ?`, [group_id, username], function(err) {
             if (err) return res.status(500).json({ error: err.message });
             io.emit('member_promoted', { group_id, username }); res.json({ ok: true });
+        });
+    });
+});
+
+app.post('/groups/:group_id/members/role', (req, res) => {
+    const { group_id } = req.params, { username, role, updated_by } = req.body;
+    if (!username || !role || !updated_by) return res.status(400).json({ error: 'Campos obrigatórios' });
+    if (role !== 'admin' && role !== 'member') return res.status(400).json({ error: 'Role inválido' });
+    db.get(`SELECT role FROM group_members WHERE group_id = ? AND username = ?`, [group_id, updated_by], (err, member) => {
+        if (err || !member || member.role !== 'admin') return res.status(403).json({ error: 'Apenas admins podem alterar papéis' });
+        db.run(`UPDATE group_members SET role = ? WHERE group_id = ? AND username = ?`, [role, group_id, username], function(err) {
+            if (err) return res.status(500).json({ error: err.message });
+            // Broadcast to all group members
+            db.all(`SELECT username FROM group_members WHERE group_id = ?`, [group_id], (err, members) => {
+                if (members) members.forEach(m => {
+                    if (onlineUsers.has(m.username)) onlineUsers.get(m.username).forEach(sid => 
+                        io.to(sid).emit('group_role_change', { group_id, username, role, by: updated_by })
+                    );
+                });
+            });
+            res.json({ ok: true, username, role });
         });
     });
 });
